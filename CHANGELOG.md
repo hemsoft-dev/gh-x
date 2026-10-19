@@ -10,6 +10,12 @@ and this project uses semantic versioning.
 
 ## [Unreleased]
 
+## [0.21.2] - 2026-10-19
+
+- chore(deps): bump the go-modules group across 1 directory with 5 updates (#225)
+- chore(deps): bump the github-actions group with 4 updates (#226)
+- docs: record v0.21.1 release (#228)
+
 ## [0.21.1] - 2026-10-19
 
 - fix(ci): recognize Codex receipts with HTML metadata (#227)
@@ -365,7 +371,8 @@ the published releases above.
 - Dynamic or unreadable workflow definitions now display `unknown` in the
   trigger column instead of failing the list command.
 
-[Unreleased]: https://github.com/hemsoft-dev/gh-x/compare/v0.21.1...HEAD
+[Unreleased]: https://github.com/hemsoft-dev/gh-x/compare/v0.21.2...HEAD
+[0.21.2]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.21.2
 [0.21.1]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.21.1
 [0.21.0]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.21.0
 [0.20.0]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.20.0
