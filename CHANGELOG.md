@@ -10,6 +10,11 @@ and this project uses semantic versioning.
 
 ## [Unreleased]
 
+## [0.21.1] - 2026-10-19
+
+- fix(ci): recognize Codex receipts with HTML metadata (#227)
+- docs: record v0.21.0 release (#224)
+
 ## [0.21.0] - 2026-10-10
 
 - feat: stream status results with loading feedback (#223)
@@ -360,7 +365,8 @@ the published releases above.
 - Dynamic or unreadable workflow definitions now display `unknown` in the
   trigger column instead of failing the list command.
 
-[Unreleased]: https://github.com/hemsoft-dev/gh-x/compare/v0.21.0...HEAD
+[Unreleased]: https://github.com/hemsoft-dev/gh-x/compare/v0.21.1...HEAD
+[0.21.1]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.21.1
 [0.21.0]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.21.0
 [0.20.0]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.20.0
 [0.19.5]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.19.5
