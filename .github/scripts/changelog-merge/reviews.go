@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -461,12 +462,51 @@ func codexCommentActivity(comment reviewComment, head string) (reviewComment, bo
 		}
 		comment.CreatedAt = stamp
 		comment.Clean = strings.Contains(matches[0][0], "**Completed**")
+		comment.Clean, err = codexSummaryClean(comment.Body, head, comment.Clean)
+		if err != nil {
+			return reviewComment{}, false, err
+		}
+	} else {
+		comment.Clean = cleanCodexComment(comment.Body)
 	}
 	if comment.CreatedAt.IsZero() {
 		return reviewComment{}, false, errors.New("current-head Codex activity lacks a timestamp")
 	}
-	comment.Clean = comment.Clean || cleanCodexComment(comment.Body)
 	return comment, true, nil
+}
+
+// Older summaries carry only an activity row. New summaries also state whether
+// the completed review found issues; completion alone must not override that.
+func codexSummaryClean(body, head string, completed bool) (bool, error) {
+	const marker = "<!-- codex-review-state:v1 "
+	_, encoded, present := strings.Cut(body, marker)
+	if !present {
+		return completed, nil
+	}
+	encoded, _, closed := strings.Cut(encoded, "-->")
+	if !closed || strings.Count(body, marker) != 1 {
+		return false, errors.New("codex summary has ambiguous review state")
+	}
+	var state struct {
+		CodeReview struct {
+			CommitSHA             string `json:"commit_sha"`
+			Status                string `json:"status"`
+			HasAnyFindings        *bool  `json:"has_any_findings"`
+			HasUnresolvedFindings *bool  `json:"has_unresolved_findings"`
+		} `json:"code_review"`
+	}
+	if err := json.Unmarshal([]byte(encoded), &state); err != nil {
+		return false, errors.New("codex summary has invalid review state")
+	}
+	code := state.CodeReview
+	if !strings.EqualFold(code.CommitSHA, head) {
+		return false, errors.New("codex summary review state does not match current head")
+	}
+	return completed && code.Status == "completed" && explicitlyFalse(code.HasAnyFindings) && explicitlyFalse(code.HasUnresolvedFindings), nil
+}
+
+func explicitlyFalse(value *bool) bool {
+	return value != nil && !*value
 }
 
 func codexSummaryPrefix(body string) string {
@@ -552,7 +592,15 @@ func receiptMatches(comment reviewComment, head string) bool {
 }
 
 func cleanCodexComment(body string) bool {
-	first, _, _ := strings.Cut(strings.TrimSpace(body), "\n")
+	body = strings.TrimSpace(body)
+	for strings.HasPrefix(body, "<!--") {
+		_, remainder, closed := strings.Cut(body, "-->")
+		if !closed {
+			return false
+		}
+		body = strings.TrimSpace(remainder)
+	}
+	first, _, _ := strings.Cut(body, "\n")
 	first = strings.ToLower(strings.TrimLeft(strings.ReplaceAll(first, "**", ""), "# "))
 	return strings.HasPrefix(first, "codex review: didn't find any major issues") || strings.HasPrefix(first, "codex review: did not find any major issues")
 }
