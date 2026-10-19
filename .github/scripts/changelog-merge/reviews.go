@@ -485,7 +485,7 @@ func codexSummaryClean(body, head string, completed bool) (bool, error) {
 	}
 	encoded, _, closed := strings.Cut(encoded, "-->")
 	if !closed || strings.Count(body, marker) != 1 {
-		return false, errors.New("Codex summary has ambiguous review state")
+		return false, errors.New("codex summary has ambiguous review state")
 	}
 	var state struct {
 		CodeReview struct {
@@ -496,11 +496,11 @@ func codexSummaryClean(body, head string, completed bool) (bool, error) {
 		} `json:"code_review"`
 	}
 	if err := json.Unmarshal([]byte(encoded), &state); err != nil {
-		return false, errors.New("Codex summary has invalid review state")
+		return false, errors.New("codex summary has invalid review state")
 	}
 	code := state.CodeReview
 	if !strings.EqualFold(code.CommitSHA, head) {
-		return false, errors.New("Codex summary review state does not match current head")
+		return false, errors.New("codex summary review state does not match current head")
 	}
 	return completed && code.Status == "completed" && explicitlyFalse(code.HasAnyFindings) && explicitlyFalse(code.HasUnresolvedFindings), nil
 }
