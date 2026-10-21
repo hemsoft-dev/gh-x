@@ -145,3 +145,59 @@ func TestProjectFallbackSuffixCollision(t *testing.T) {
 		t.Fatalf("collapsed fallback groups: %+v", doc.Groups)
 	}
 }
+
+func TestProjectRecordedHiddenProjectFallback(t *testing.T) {
+	for _, exitFailure := range []bool{true, false} {
+		t.Run(map[bool]string{true: "gh exits nonzero", false: "HTTP success with errors"}[exitFailure], func(t *testing.T) {
+			projectTestTransport(t, "project")
+			previous := ghExecContextFunc
+			ghExecContextFunc = func(ctx context.Context, args ...string) (bytes.Buffer, bytes.Buffer, error) {
+				if strings.Contains(strings.Join(args, " "), "projectV2") {
+					var err error
+					if exitFailure {
+						err = errors.New("exit status 1")
+					}
+					return *bytes.NewBuffer(projectFixture(t, "project-hidden")), *bytes.NewBufferString("gh: Could not resolve to a ProjectV2 with the number 1."), err
+				}
+				return previous(ctx, args...)
+			}
+			data, err := fetchProjectData(projectOptions{repo: "example/loops", project: "example/1"}, time.Now())
+			if err != nil {
+				t.Fatal(err)
+			}
+			doc := buildProjectDocument(data, projectOptions{})
+			if doc.Project != nil || doc.Grouping != "label" || len(doc.Hints) != 1 || !strings.Contains(doc.Hints[0], "read:project") || !strings.Contains(doc.Hints[0], "--project") {
+				t.Fatalf("hidden project did not fall back safely: %+v", doc)
+			}
+		})
+	}
+}
+
+func TestProjectHiddenClassification(t *testing.T) {
+	for _, tc := range []struct {
+		name, kind, path string
+		missing          bool
+	}{
+		{"project missing", "NOT_FOUND", `["repositoryOwner","projectV2"]`, true},
+		{"issue missing", "NOT_FOUND", `["repository","issue1"]`, false},
+		{"different error", "FORBIDDEN", `["repositoryOwner","projectV2"]`, false},
+		{"missing path", "NOT_FOUND", `[]`, false},
+		{"numeric path", "NOT_FOUND", `[1]`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var path []json.RawMessage
+			if err := json.Unmarshal([]byte(tc.path), &path); err != nil {
+				t.Fatal(err)
+			}
+			err := projectResponseError([]projectGraphQLError{{graphQLError: graphQLError{Message: "test failure", Path: path}, Type: tc.kind}})
+			if errors.Is(err, errProjectUnavailable) != tc.missing {
+				t.Fatalf("incorrect access classification %v", err)
+			}
+		})
+	}
+	for _, cause := range []error{context.Canceled, context.DeadlineExceeded} {
+		if projectScopeError(errors.Join(errProjectUnavailable, cause)) {
+			t.Fatal("project fallback hid cancellation or deadline")
+		}
+	}
+}

@@ -144,7 +144,7 @@ func loadProjectGrouping(ctx context.Context, host, owner, name string, o projec
 		return err
 	}
 	data.Project = nil
-	data.Hints = append(data.Hints, "Hint: project access requires read:project; grouping by label. Run gh auth refresh -s read:project.")
+	data.Hints = append(data.Hints, "Hint: project unavailable or missing read:project access; grouping by label. Check --project or run gh auth refresh -s read:project.")
 	return nil
 }
 
@@ -176,29 +176,59 @@ func enrichProjectIssues(ctx context.Context, owner, name, host string, issues [
 }
 
 func projectScopeError(err error) bool {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
 	value := strings.ToLower(err.Error())
-	return strings.Contains(value, "read:project") || strings.Contains(value, "insufficient_scopes") || strings.Contains(value, "resource not accessible by integration") || strings.Contains(value, "resource not accessible by personal access token")
+	return errors.Is(err, errProjectUnavailable) || strings.Contains(value, "read:project") || strings.Contains(value, "insufficient_scopes") || strings.Contains(value, "resource not accessible by integration") || strings.Contains(value, "resource not accessible by personal access token")
+}
+
+var errProjectUnavailable = errors.New("project not found or not accessible")
+
+type projectGraphQLError struct {
+	graphQLError
+	Type string `json:"type"`
 }
 
 func projectQuery(ctx context.Context, host, query string, target any) error {
-	raw, err := fetchGraphQLContext(ctx, host, query)
-	if err != nil {
-		return err
+	raw, fetchErr := fetchGraphQLContext(ctx, host, query)
+	if len(raw) == 0 && fetchErr != nil {
+		return fetchErr
 	}
 	var envelope struct {
-		Data   json.RawMessage `json:"data"`
-		Errors []graphQLError  `json:"errors"`
+		Data   json.RawMessage       `json:"data"`
+		Errors []projectGraphQLError `json:"errors"`
 	}
-	if err = json.Unmarshal(raw, &envelope); err != nil {
-		return err
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return errors.Join(fetchErr, err)
 	}
-	if len(envelope.Errors) > 0 {
-		return errors.New(envelope.Errors[0].Message)
+	if err := projectResponseError(envelope.Errors); err != nil {
+		return errors.Join(fetchErr, err)
+	}
+	if fetchErr != nil {
+		return fetchErr
 	}
 	if len(envelope.Data) == 0 || string(envelope.Data) == "null" {
 		return errors.New("project response has no data")
 	}
 	return json.Unmarshal(envelope.Data, target)
+}
+
+func projectResponseError(entries []projectGraphQLError) error {
+	var result error
+	for _, entry := range entries {
+		err := errors.New(entry.Message)
+		if entry.Type == "NOT_FOUND" && projectMissingPath(entry.Path) {
+			err = errors.Join(err, errProjectUnavailable)
+		}
+		result = errors.Join(result, err)
+	}
+	return result
+}
+
+func projectMissingPath(path []json.RawMessage) bool {
+	var field string
+	return len(path) > 0 && json.Unmarshal(path[len(path)-1], &field) == nil && field == "projectV2"
 }
 
 type projectMembershipPage struct {
@@ -470,8 +500,11 @@ func fetchProjectFields(ctx context.Context, host, owner string, number int, cur
 	if err := projectQuery(ctx, host, query, &response); err != nil {
 		return nil, err
 	}
-	if response.RepositoryOwner == nil || response.RepositoryOwner.ProjectV2 == nil {
-		return nil, fmt.Errorf("project %s/%d not found or not accessible", owner, number)
+	if response.RepositoryOwner == nil {
+		return nil, errors.New("project owner response unavailable")
+	}
+	if response.RepositoryOwner.ProjectV2 == nil {
+		return nil, fmt.Errorf("project %s/%d: %w", owner, number, errProjectUnavailable)
 	}
 	p := response.RepositoryOwner.ProjectV2
 	if p.ID == "" || p.Number != number || p.Fields == nil {

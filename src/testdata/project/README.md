@@ -16,3 +16,8 @@ the transport's values. Complete private recordings stay outside the repository.
 Tests also mutate these responses to exercise pagination, partial errors,
 missing permissions, missing fields and recently closed boundaries. Linked PR
 and sub-issue enrichment values are synthetic and explicitly asserted.
+
+`project-hidden.json` records the real GraphQL NOT_FOUND response from a read-only
+GitHub Actions token on 2026-10-21. The request selected an existing org project
+that the installation token could not access; the response contains no private
+project metadata or credentials.

@@ -160,8 +160,10 @@ most of those issues (ties use owner, then project number). `--project OWNER/N`
 selects one explicitly, including a project with no open repository issues.
 Project access requires `read:project`; the broader `project` scope includes it.
 Without that permission the command prints one scope hint and groups by label.
-With no project it also uses labels. An invalid explicit selector or a network
-failure reports an error rather than presenting an apparently complete view.
+With no project it also uses labels. GitHub can hide inaccessible projects as
+not found; a missing or hidden selected project uses label fallback with one
+hint to check the selector or project access. Malformed selectors and network
+failures report errors.
 
 Label mode uses each issue's first label, or `No label`. Repeat `--group-label`
 to prefer named labels in that order, falling back to the first label when none
