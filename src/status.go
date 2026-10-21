@@ -172,7 +172,9 @@ func parseStatusArgs(args []string, stderr io.Writer) (statusOptions, error) {
 	options := statusOptions{mergedLimit: statusMergedDefaultLimit}
 	flags := statusFlags(&options, stderr)
 
-	if err := flags.Parse(args); err != nil {
+	parseErr := flags.Parse(args)
+	options.json = statusJSONRequested(args)
+	if err := parseErr; err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return statusOptions{}, errHelpDisplayed
 		}
@@ -674,6 +676,10 @@ func assessStatusWorktreeCleanliness(worktree *statusWorktree, defaultBranch str
 	if worktree.Prunable || worktree.Primary || worktree.Current || worktree.Locked || worktree.Branch == defaultBranch {
 		return
 	}
+	inspectStatusWorktreeCleanliness(worktree)
+}
+
+func inspectStatusWorktreeCleanliness(worktree *statusWorktree) {
 	worktree.Exists = statusPathExistsFunc(worktree.Path)
 	if !worktree.Exists {
 		return

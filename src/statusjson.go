@@ -116,24 +116,30 @@ type statusJSONIssue struct {
 }
 
 type statusJSONPR struct {
-	Number              int               `json:"number"`
-	Issues              string            `json:"issues"`
-	Title               string            `json:"title"`
-	Author              string            `json:"author"`
-	State               string            `json:"state"`
-	Review              string            `json:"review"`
-	Approvals           int               `json:"approvals"`
-	Approvers           []displayApprover `json:"approvers"`
-	ApprovalsIncomplete bool              `json:"approvalsIncomplete"`
-	Checks              string            `json:"checks"`
-	Comments            string            `json:"comments"`
-	AIReview            string            `json:"aiReview"`
-	AIClean             *bool             `json:"aiClean"`
-	Branch              string            `json:"branch"`
-	Updated             string            `json:"updated"`
-	UpdatedAt           *time.Time        `json:"updatedAt"`
-	MergedAt            *time.Time        `json:"mergedAt"`
-	URL                 string            `json:"url"`
+	Number              int                  `json:"number"`
+	Issues              string               `json:"issues"`
+	Title               string               `json:"title"`
+	Author              string               `json:"author"`
+	State               string               `json:"state"`
+	Review              string               `json:"review"`
+	Approvals           int                  `json:"approvals"`
+	Approvers           []statusJSONApprover `json:"approvers"`
+	ApprovalsIncomplete bool                 `json:"approvalsIncomplete"`
+	Checks              string               `json:"checks"`
+	Comments            string               `json:"comments"`
+	AIReview            string               `json:"aiReview"`
+	AIClean             *bool                `json:"aiClean"`
+	Branch              string               `json:"branch"`
+	Updated             string               `json:"updated"`
+	UpdatedAt           *time.Time           `json:"updatedAt"`
+	MergedAt            *time.Time           `json:"mergedAt"`
+	URL                 string               `json:"url"`
+}
+
+type statusJSONApprover struct {
+	Login      string     `json:"login"`
+	ApprovedAt *time.Time `json:"approvedAt"`
+	Age        string     `json:"age"`
 }
 
 type statusJSONRun struct {
@@ -165,6 +171,13 @@ func isStatusJSONCommand(args []string, jsonOutput bool) bool {
 	return jsonOutput && len(args) > 0 && (args[0] == "status" || args[0] == "s")
 }
 
+// Reuse the global scan even when flag.Parse stops before reaching --json.
+// That scan knows flag values, -- boundaries and the last JSON boolean value.
+func statusJSONRequested(args []string) bool {
+	_, terminal, _ := extractTerminalOptions(append([]string{"status"}, args...))
+	return terminal.json
+}
+
 func statusArgsError(options statusOptions, stdout io.Writer, err error) error {
 	if errors.Is(err, errHelpDisplayed) {
 		return nil
@@ -180,10 +193,39 @@ func runStatusJSON(options statusOptions, stdout io.Writer) error {
 	if err != nil {
 		return writeStatusJSONError(stdout, err)
 	}
+	populateStatusJSONWorktreeFacts(&dashboard)
 	if err := commandContext.Err(); err != nil {
 		return writeStatusJSONError(stdout, err)
 	}
 	return json.NewEncoder(stdout).Encode(buildStatusJSON(dashboard, options, statusNowFunc()))
+}
+
+func populateStatusJSONWorktreeFacts(dashboard *statusDashboard) {
+	for i := range dashboard.Worktrees {
+		worktree := &dashboard.Worktrees[i]
+		if worktree.CleanKnown {
+			continue
+		}
+		if summary, known := statusJSONWorktreeSummary(*dashboard, *worktree); known {
+			worktree.Exists = statusPathExistsFunc(worktree.Path)
+			worktree.CleanKnown = worktree.Exists
+			worktree.Clean = worktree.Exists && !hasWorkingChanges(summary)
+		} else {
+			inspectStatusWorktreeCleanliness(worktree)
+		}
+	}
+}
+
+func statusJSONWorktreeSummary(dashboard statusDashboard, worktree statusWorktree) (statusSummary, bool) {
+	if worktree.Current {
+		return dashboard.CurrentStatus, true
+	}
+	ref := dashboard.Branches.Local[dashboard.DefaultBranch]
+	if dashboard.DefaultCheckedOut && dashboard.DefaultStatusErr == nil &&
+		worktree.Branch == dashboard.DefaultBranch && sameStatusPath(worktree.Path, ref.WorktreePath) {
+		return dashboard.DefaultStatus, true
+	}
+	return statusSummary{}, false
 }
 
 func writeStatusJSONError(stdout io.Writer, cause error) error {
@@ -289,10 +331,18 @@ func buildStatusJSONPRs(prs []displayPullRequest) []statusJSONPR {
 	for _, pr := range prs {
 		items = append(items, statusJSONPR{
 			Number: pr.Number, Issues: pr.Issues, Title: pr.Title, Author: pr.Author, State: pr.State, Review: pr.Review,
-			Approvals: pr.Approvals, Approvers: append([]displayApprover{}, pr.Approvers...), ApprovalsIncomplete: pr.ApprovalsIncomplete,
+			Approvals: pr.Approvals, Approvers: buildStatusJSONApprovers(pr.Approvers), ApprovalsIncomplete: pr.ApprovalsIncomplete,
 			Checks: pr.Checks, Comments: pr.Comments, AIReview: pr.AIReview, AIClean: pr.AIClean, Branch: pr.Branch,
 			Updated: pr.Updated, UpdatedAt: statusJSONTime(pr.updatedAt), MergedAt: statusJSONTime(pr.mergedAt), URL: pr.URL,
 		})
+	}
+	return items
+}
+
+func buildStatusJSONApprovers(approvers []displayApprover) []statusJSONApprover {
+	items := make([]statusJSONApprover, 0, len(approvers))
+	for _, approver := range approvers {
+		items = append(items, statusJSONApprover{approver.Login, statusJSONTime(approver.ApprovedAt), approver.Age})
 	}
 	return items
 }

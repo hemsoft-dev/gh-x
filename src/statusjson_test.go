@@ -86,7 +86,7 @@ func TestStatusJSONValues(t *testing.T) {
 	}
 
 	pr := got.PullRequests.Open[0]
-	wantPR := statusJSONPR{2, "#7", "pr", "bob", "open", "required", 1, d.PullRequests[0].Approvers, true, "pending", "2/1", "fail", &clean, "feature", "2m", statusJSONTime(now), nil, "pr-url"}
+	wantPR := statusJSONPR{2, "#7", "pr", "bob", "open", "required", 1, []statusJSONApprover{{"alice", statusJSONTime(now), "1m"}}, true, "pending", "2/1", "fail", &clean, "feature", "2m", statusJSONTime(now), nil, "pr-url"}
 	if !reflect.DeepEqual(pr, wantPR) || got.PullRequests.MergedLimit != 8 || !got.PullRequests.Merged[0].MergedAt.Equal(now) {
 		t.Fatalf("PR fields lost: %+v", got.PullRequests)
 	}
@@ -263,5 +263,82 @@ func TestStatusJSONV1Contract(t *testing.T) {
 	}
 	if !bytes.Equal(append(got, '\n'), want) {
 		t.Fatalf("version 1 contract changed:\n%s", got)
+	}
+}
+
+func TestStatusJSONApproverUTC(t *testing.T) {
+	at := time.Date(2026, 10, 21, 2, 30, 0, 0, time.FixedZone("EDT", -4*60*60))
+	rows := buildStatusJSONPRs([]displayPullRequest{{Approvers: []displayApprover{{Login: "alice", ApprovedAt: at}, {Login: "unknown"}}}})
+	data, err := json.Marshal(rows)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []struct {
+		Approvers []struct{ ApprovedAt *string }
+	}
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got[0].Approvers[0].ApprovedAt == nil || *got[0].Approvers[0].ApprovedAt != "2026-10-21T06:30:00Z" || got[0].Approvers[1].ApprovedAt != nil {
+		t.Fatalf("approval timestamps must be UTC or null: %s", data)
+	}
+}
+
+func TestStatusJSONProtectedWorktreeAcquisition(t *testing.T) {
+	defer saveStatusFuncs()()
+	dashboard := statusDashboard{
+		DefaultBranch: "main", DefaultCheckedOut: true,
+		CurrentStatus: statusSummary{Modified: 1}, DefaultStatus: statusSummary{Staged: 1},
+		Branches: statusBranchInventory{Local: map[string]statusBranchRef{"main": {WorktreePath: "/default"}}},
+		Worktrees: []statusWorktree{
+			{Path: "/current", Current: true}, {Path: "/default", Branch: "main"},
+			{Path: "/locked", Locked: true}, {Path: "/missing", Prunable: true},
+			{Path: "/failed", Primary: true}, {Path: "/known", Exists: true, CleanKnown: true, Clean: true},
+		},
+	}
+	statusPathExistsFunc = func(path string) bool {
+		if path == "/known" {
+			t.Fatal("known worktree should not be inspected again")
+		}
+		return path != "/missing"
+	}
+	calls := []string{}
+	statusCommandFunc = func(name string, args ...string) (string, error) {
+		if name != "git" || len(args) != 4 || args[0] != "-C" || args[2] != "status" || args[3] != "--porcelain" {
+			t.Fatalf("unexpected command: %s %v", name, args)
+		}
+		calls = append(calls, args[1])
+		if args[1] == "/failed" {
+			return "", errors.New("inaccessible")
+		}
+		return "", nil
+	}
+	populateStatusJSONWorktreeFacts(&dashboard)
+	if !reflect.DeepEqual(calls, []string{"/locked", "/failed"}) {
+		t.Fatalf("protected summary reuse: %v", calls)
+	}
+	for i, want := range [][3]bool{{true, true, false}, {true, true, false}, {true, true, true}, {false, false, false}, {true, false, false}, {true, true, true}} {
+		worktree := dashboard.Worktrees[i]
+		if got := [3]bool{worktree.Exists, worktree.CleanKnown, worktree.Clean}; got != want {
+			t.Fatalf("facts for %s = %v, want %v", worktree.Path, got, want)
+		}
+		if worktree.CleanupCandidate {
+			t.Fatalf("facts must not change cleanup verdict: %+v", worktree)
+		}
+	}
+}
+
+func TestStatusJSONRequestedScan(t *testing.T) {
+	for _, tt := range []struct {
+		args []string
+		want bool
+	}{
+		{[]string{"--unknown", "--json"}, true}, {[]string{"extra", "--json"}, true},
+		{[]string{"--json", "--json=false"}, false}, {[]string{"--json=false", "--json"}, true},
+		{[]string{"--", "--json"}, false}, {[]string{"--merged", "--json"}, false},
+	} {
+		if got := statusJSONRequested(tt.args); got != tt.want {
+			t.Fatalf("scan %v = %v, want %v", tt.args, got, tt.want)
+		}
 	}
 }

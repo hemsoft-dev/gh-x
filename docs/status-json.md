@@ -121,7 +121,7 @@ Both PR arrays use the same row shape:
 | `title`, `author`, `state`, `branch` | string | Terminal display values |
 | `review` | string | Terminal review verdict, such as `approved`, `review`, `changes`, `-` |
 | `approvals` | integer | Distinct current approver count |
-| `approvers` | array | Entries with string `login`, timestamp `approvedAt` and relative string `age` |
+| `approvers` | array | Entries with string `login`, nullable timestamp `approvedAt` and relative string `age` |
 | `approvalsIncomplete` | boolean | Approval acquisition was incomplete |
 | `checks` | string | Existing aggregate checks verdict, such as `pass`, `fail`, `pending`, `-` |
 | `comments` | string | Existing terminal comments/thread summary |

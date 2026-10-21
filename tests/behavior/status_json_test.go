@@ -28,6 +28,12 @@ type statusJSONResult struct {
 			Clean bool
 			Count int
 		}
+		Worktrees struct {
+			Items []struct {
+				Path                                                                  string
+				Current, Primary, Locked, Exists, CleanKnown, Clean, CleanupCandidate bool
+			}
+		}
 	}
 	Issues []struct {
 		Number int
@@ -48,6 +54,57 @@ type statusJSONResult struct {
 		FetchedAt            *string
 	}
 	Error *struct{ Code, Message string }
+}
+
+func TestCLIBehaviorStatusJSONEarlyErrors(t *testing.T) {
+	for _, args := range [][]string{{"status", "--unknown", "--json"}, {"s", "extra", "--json"}, {"status", "--merged=bad", "--json"}} {
+		result := runCLI(t, newFixtureRepository(t), "success", args...)
+		document := decodeStatusJSON(t, result)
+		if result.exitCode == 0 || document.Error == nil || document.Error.Code != "status_failed" || result.calls != "" {
+			t.Fatalf("early argument error: %v %+v %+v", args, result, document)
+		}
+	}
+}
+
+func TestCLIBehaviorStatusJSONProtectedWorktrees(t *testing.T) {
+	repository := newFixtureRepository(t)
+	defaultWorktree := filepath.Join(t.TempDir(), "default")
+	feature := filepath.Join(t.TempDir(), "feature")
+	locked := filepath.Join(t.TempDir(), "locked")
+	runGit(t, repository, "switch", "-c", "feature/primary")
+	runGit(t, repository, "worktree", "add", defaultWorktree, "main")
+	runGit(t, repository, "worktree", "add", "-b", "feature/json", feature, "HEAD")
+	runGit(t, repository, "worktree", "add", "-b", "feature/locked", locked, "HEAD")
+	runGit(t, repository, "worktree", "lock", locked)
+	for _, directory := range []string{repository, defaultWorktree, feature, locked} {
+		result := runCLI(t, directory, "success", "status", "--json")
+		document := decodeStatusJSON(t, result)
+		if result.exitCode != 0 || len(document.Health.Worktrees.Items) != 4 {
+			t.Fatalf("protected fixture: %+v %+v", result, document)
+		}
+		for _, worktree := range document.Health.Worktrees.Items {
+			if !worktree.Exists || !worktree.CleanKnown || !worktree.Clean || (worktree.CleanupCandidate && (worktree.Primary || worktree.Current || worktree.Locked || worktree.Path == defaultWorktree)) {
+				t.Fatalf("protected worktree facts from %s: %+v", directory, worktree)
+			}
+		}
+	}
+	if err := os.WriteFile(filepath.Join(repository, "dirty.txt"), []byte("dirty"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(defaultWorktree, "dirty.txt"), []byte("dirty"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(locked, "dirty.txt"), []byte("dirty"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	document := decodeStatusJSON(t, runCLI(t, feature, "success", "status", "--json"))
+	for _, worktree := range document.Health.Worktrees.Items {
+		if worktree.Primary || worktree.Locked || worktree.Path == defaultWorktree {
+			if !worktree.Exists || !worktree.CleanKnown || worktree.Clean || worktree.CleanupCandidate {
+				t.Fatalf("dirty protected worktree: %+v", worktree)
+			}
+		}
+	}
 }
 
 func decodeStatusJSON(t *testing.T, result cliResult) statusJSONResult {
