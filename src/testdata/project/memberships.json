@@ -1,0 +1,31 @@
+{
+  "data": {
+    "repository": {
+      "issue": {
+        "projectItems": {
+          "nodes": [
+            {
+              "project": {
+                "id": "PROJECT_1",
+                "number": 1,
+                "title": "Example loops",
+                "url": "https://github.com/orgs/example/projects/1",
+                "owner": {
+                  "login": "example"
+                }
+              },
+              "fieldValueByName": {
+                "name": "Waiting on Franz",
+                "optionId": "13ed22ba"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": "MQ"
+          }
+        }
+      }
+    }
+  }
+}

@@ -41,6 +41,7 @@ gh x pr review [number] # read-only agentic PR review
 gh x pr changelog       # show release notes for recent versions
 gh x monitor            # full-terminal multi-repository PR and issue dashboard
 gh x status             # repository health with open and recently merged PRs
+gh x project            # issues grouped by project Status (alias: p)
 gh x run list [flags]   # workflow runs with clickable IDs
 gh x version            # show version and check for updates (also: --version, -v)
 ```
@@ -134,6 +135,111 @@ The issue table keeps the standard filters and adds compact repository context:
 An empty, unfiltered open issue backlog prints one randomly selected
 celebration from the shared pool. State, search, author, assignee, milestone,
 and label filters keep the factual `No issues found.` message.
+
+## Issue-driven projects
+
+`gh x project` (alias `p`) groups open issues by a GitHub Project v2's Status
+field, in its option order. Archived project items do not count as active
+membership. Issues outside the selected project or without a
+Status appear under `No status`. Empty Status groups remain visible in the
+count header. The default repository resolves from the checkout or `GH_REPO`,
+as with `status`; `-R` overrides it.
+
+```bash
+gh x project
+gh x p --project my-org/1
+gh x p --closed-days 14
+gh x p --closed-days 0          # hide recently closed
+gh x p --group-by label        # force label grouping
+gh x p --group-label watching --group-label chief-todo
+gh x p --json | jq .schemaVersion
+# Optional shell alias: alias gp='gh x p'
+```
+
+When several projects contain open issues, the default is the project with the
+most of those issues (ties use owner, then project number). `--project OWNER/N`
+selects one explicitly, including a project with no open repository issues.
+Project access requires `read:project`; the broader `project` scope includes it.
+Without that permission the command prints one scope hint and groups by label.
+With no project it also uses labels. GitHub can hide inaccessible projects as
+not found; a missing or hidden selected project uses label fallback with one
+hint to check the selector or project access. Malformed selectors and network
+failures report errors.
+
+Label mode uses each issue's first label, or `No label`. Repeat `--group-label`
+to prefer named labels in that order, falling back to the first label when none
+matches. The grouping label is omitted from the row's other labels. Label groups
+sort by name; issues within each group sort oldest first. Age means time since
+creation, and Updated means time since the last update. The closed section sorts
+by closure time, newest first, and defaults to the last seven days. Memberships
+are queried in batches of 30 issues, with additional pages fetched
+for each issue as needed. The operation uses the standard 30-second GitHub timeout
+(`GH_X_GITHUB_TIMEOUT` overrides it). All issue pages are fetched; pull requests returned by the
+REST issues endpoint are excluded.
+Linked PRs include closed and merged references. Unknown linked PRs or sub-issue
+counts display `?` with an explanatory hint.
+
+Example (synthetic issues):
+
+```text
+Repository example/loops
+Project Open loops · https://github.com/orgs/example/projects/1
+Waiting on Franz 1 · Chief todo 1 · Watching 0 · Done 0
+
+Waiting on Franz (1)
+Issue  Title                Age  Updated  Labels    PRs  Sub
+#2     Approve release plan  2d   1h       area:dev  #8   2/5
+
+Chief todo (1)
+Issue  Title                Age  Updated  Labels    PRs  Sub
+#1     Prepare weekly brief  3d   2h       area:dev       0/0
+
+Recently closed (last 7 days) (1)
+Issue  Title                Age  Updated  Labels    PRs  Sub
+#3     Review old loops     4d   3h                       0/0
+```
+
+### Project JSON
+
+`--json` writes one document, without the banner, update notice, colour or
+terminal clearing. Non-TTY text also has no colour and never clears. Argument
+and acquisition failures write `{"schemaVersion":1,"error":"message"}` and exit
+nonzero. Output-write failures also exit nonzero. JSON timestamps use UTC.
+
+This is a separate schema from [status JSON](docs/status-json.md).
+`gh x status` and its schema version 1 are unchanged.
+
+```json
+{
+  "schemaVersion": 1,
+  "repository": "example/loops",
+  "project": null,
+  "grouping": "label",
+  "groups": [{"id": "label:watching", "name": "watching", "count": 1, "issues": [{
+    "number": 2, "title": "Approve release plan",
+    "url": "https://github.com/example/loops/issues/2",
+    "createdAt": "2026-10-19T12:00:00Z",
+    "updatedAt": "2026-10-21T11:00:00Z", "closedAt": null,
+    "labels": ["area:dev"],
+    "pullRequests": [{"number": 8, "url": "https://github.com/example/loops/pull/8"}],
+    "subIssues": {"completed": 2, "total": 5}
+  }]}],
+  "recentlyClosed": [], "closedDays": 7, "hints": []
+}
+```
+
+`project` is null in label mode, otherwise an object with `id`, `owner`,
+`number`, `title`, `url`, and ordered `statusOptions` (`id`, `name`). `groups`
+contains `id`, `name`, `count`, and `issues`. Group IDs distinguish Status
+options and label names from unassigned groups, even when their displayed names
+match (`No label` or `No status`). Conflicting fallback names gain an explanatory
+suffix. Each issue has the fields shown above;
+`labels` excludes the grouping label in label mode. `recentlyClosed` uses the
+same issue shape and preserves all labels. `closedAt` is null for open issues;
+`subIssues` is null when unavailable. `pullRequests` is an empty array when
+there are none and null when unavailable. Other collection fields are arrays,
+including when empty. `hints` contains any scope or enrichment notices that
+would appear in text output. `closedDays` records the requested window.
 
 ## What `gh x status` adds
 
