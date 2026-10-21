@@ -47,11 +47,11 @@ func main() {
 	}
 }
 
-// Only status needs to intercept interrupts to restore its live terminal frame.
+// Status restores its live terminal frame on interrupt; project cancels its fetches.
 // Other commands retain the default signal behavior of their agent subprocesses.
 func commandInterruptContext(args []string) (context.Context, context.CancelFunc) {
 	command, _, err := extractTerminalOptions(args)
-	if err != nil || len(command) == 0 || (command[0] != "status" && command[0] != "s") {
+	if err != nil || len(command) == 0 || (command[0] != "status" && command[0] != "s" && command[0] != "project" && command[0] != "p") {
 		return context.Background(), func() {}
 	}
 	return signal.NotifyContext(context.Background(), os.Interrupt)
@@ -119,6 +119,8 @@ func resolveCommand(name string) subcommand {
 		{"--version", false, func(_ []string, out, _ io.Writer) error { return runVersion(out) }},
 		{"status", true, runStatus},
 		{"s", true, runStatus},
+		{"project", true, runProject},
+		{"p", true, runProject},
 		{"changelog", true, runChangelog},
 		{"pr", true, runPr},
 		{"run", true, runRunCmd},
@@ -288,10 +290,13 @@ func run(args []string, stdout io.Writer, stderr io.Writer) (<-chan string, erro
 		return nil, clearErr
 	}
 	if err != nil {
+		if isProjectJSONCommand(args, terminal.json) {
+			return nil, writeProjectError(stdout, err)
+		}
 		return nil, statusTerminalError(args, terminal, stdout, err)
 	}
 	var updateCh <-chan string
-	statusJSON := isStatusJSONCommand(args, terminal.json)
+	statusJSON := isStatusJSONCommand(args, terminal.json) || isProjectJSONCommand(args, terminal.json)
 	skipUpdate := statusJSON || (len(args) > 0 && shouldSkipUpdateCheck(args[0]))
 	if !skipUpdate && version != "dev" {
 		updateCh = asyncUpdateCheck()
@@ -591,6 +596,7 @@ Global flags:
 
 Available Commands:
   status     Show repository health, issues, pull requests, and runs (alias: s)
+  project    Show issues grouped by project Status or label (alias: p)
   changelog  Show release notes for recent versions
   pr         Pull request commands (list, me, atm, review, changelog)
   issue      Issue commands (list)

@@ -1,0 +1,41 @@
+{
+  "data": {
+    "repositoryOwner": {
+      "projectV2": {
+        "id": "PROJECT_1",
+        "title": "Example loops",
+        "number": 1,
+        "url": "https://github.com/orgs/example/projects/1",
+        "fields": {
+          "nodes": [
+            {
+              "name": "Status",
+              "options": [
+                {
+                  "id": "13ed22ba",
+                  "name": "Waiting on Franz"
+                },
+                {
+                  "id": "52411802",
+                  "name": "Chief todo"
+                },
+                {
+                  "id": "9de84d29",
+                  "name": "Watching"
+                },
+                {
+                  "id": "bdd6910a",
+                  "name": "Done"
+                }
+              ]
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": "MTQ"
+          }
+        }
+      }
+    }
+  }
+}

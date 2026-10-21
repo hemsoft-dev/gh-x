@@ -1,0 +1,69 @@
+[
+  {
+    "number": 1,
+    "title": "Recorded open issue 1",
+    "html_url": "https://github.com/example/loops/issues/1",
+    "created_at": "2026-10-19T07:20:01Z",
+    "updated_at": "2026-10-21T08:37:45Z",
+    "closed_at": null,
+    "labels": [
+      {
+        "name": "chief-todo"
+      },
+      {
+        "name": "area:dev"
+      }
+    ]
+  },
+  {
+    "number": 2,
+    "title": "Recorded open issue 2",
+    "html_url": "https://github.com/example/loops/issues/2",
+    "created_at": "2026-10-19T07:20:02Z",
+    "updated_at": "2026-10-21T08:37:46Z",
+    "closed_at": null,
+    "labels": [
+      {
+        "name": "waiting-on-franz"
+      },
+      {
+        "name": "area:life"
+      },
+      {
+        "name": "area:work"
+      }
+    ]
+  },
+  {
+    "number": 3,
+    "title": "Recorded open issue 3",
+    "html_url": "https://github.com/example/loops/issues/3",
+    "created_at": "2026-10-19T07:20:03Z",
+    "updated_at": "2026-10-21T11:02:10Z",
+    "closed_at": null,
+    "labels": [
+      {
+        "name": "chief-todo"
+      },
+      {
+        "name": "area:work"
+      }
+    ]
+  },
+  {
+    "number": 4,
+    "title": "Recorded open issue 4",
+    "html_url": "https://github.com/example/loops/issues/4",
+    "created_at": "2026-10-19T07:20:04Z",
+    "updated_at": "2026-10-21T08:37:50Z",
+    "closed_at": null,
+    "labels": [
+      {
+        "name": "chief-todo"
+      },
+      {
+        "name": "area:dev"
+      }
+    ]
+  }
+]

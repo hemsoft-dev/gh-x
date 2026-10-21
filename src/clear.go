@@ -102,6 +102,11 @@ func (scan *terminalFlagScan) option(arg string) (bool, error) {
 
 func (scan *terminalFlagScan) takesValue(arg string) bool {
 	name, _, assigned := strings.Cut(arg, "=")
+	// Preserve existing command parsing, including invalid positional inputs.
+	// The new project command shares its name with its --project flag.
+	if terminalCommandKey(scan.command) == "project" && !looksLikeFlag(arg) {
+		return false
+	}
 	return !assigned && consumesFlagValue(scan.flags, name)
 }
 
@@ -129,6 +134,8 @@ func terminalCommandKey(command []string) string {
 		return ""
 	}
 	switch command[0] {
+	case "p":
+		return "project"
 	case "s":
 		return "status"
 	case "pr", "issue", "run", "workflow", "codespace":
@@ -147,6 +154,7 @@ func terminalCommandKey(command []string) string {
 
 func terminalCommandFlags(command []string) *flag.FlagSet {
 	factories := map[string]func() *flag.FlagSet{
+		"project":        func() *flag.FlagSet { return projectFlags(&projectOptions{}, io.Discard) },
 		"status":         func() *flag.FlagSet { return statusFlags(&statusOptions{}, io.Discard) },
 		"changelog":      func() *flag.FlagSet { return changelogFlags(&changelogOptions{}, io.Discard) },
 		"pr changelog":   func() *flag.FlagSet { return changelogFlags(&changelogOptions{}, io.Discard) },

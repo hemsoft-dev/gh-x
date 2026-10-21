@@ -1,0 +1,59 @@
+[
+  {
+    "number": 1,
+    "title": "Recorded closed issue 1",
+    "html_url": "https://github.com/example/loops/issues/1",
+    "created_at": "2026-10-19T07:20:05Z",
+    "updated_at": "2026-10-21T08:37:58Z",
+    "closed_at": "2026-10-21T08:37:58Z",
+    "labels": []
+  },
+  {
+    "number": 2,
+    "title": "Recorded closed issue 2",
+    "html_url": "https://github.com/example/loops/issues/2",
+    "created_at": "2026-10-21T08:37:31Z",
+    "updated_at": "2026-10-21T09:25:11Z",
+    "closed_at": "2026-10-21T09:25:10Z",
+    "labels": [
+      {
+        "name": "waiting-on-franz"
+      },
+      {
+        "name": "area:dev"
+      }
+    ]
+  },
+  {
+    "number": 3,
+    "title": "Recorded closed issue 3",
+    "html_url": "https://github.com/example/loops/issues/3",
+    "created_at": "2026-10-21T08:37:33Z",
+    "updated_at": "2026-10-21T11:04:25Z",
+    "closed_at": "2026-10-21T11:04:25Z",
+    "labels": [
+      {
+        "name": "watching"
+      },
+      {
+        "name": "area:dev"
+      }
+    ]
+  },
+  {
+    "number": 4,
+    "title": "Recorded closed issue 4",
+    "html_url": "https://github.com/example/loops/issues/4",
+    "created_at": "2026-10-21T08:37:37Z",
+    "updated_at": "2026-10-21T10:29:45Z",
+    "closed_at": "2026-10-21T10:29:45Z",
+    "labels": [
+      {
+        "name": "watching"
+      },
+      {
+        "name": "area:dev"
+      }
+    ]
+  }
+]
