@@ -342,3 +342,17 @@ func TestStatusJSONRequestedScan(t *testing.T) {
 		}
 	}
 }
+
+func TestStatusJSONGlobalErrorsNeverClear(t *testing.T) {
+	forceTerminal(t, true)
+	for _, args := range [][]string{
+		{"status", "--json", "--clear", "--clear=wrong"},
+		{"--clear=wrong", "status", "--clear", "--json"},
+	} {
+		var stdout, stderr bytes.Buffer
+		_, err := run(args, &stdout, &stderr)
+		if err == nil || !json.Valid(stdout.Bytes()) || strings.Contains(stdout.String(), "\x1b") || !strings.Contains(stdout.String(), "status_failed") {
+			t.Fatalf("global JSON error: %v, %v stdout=%q stderr=%q", args, err, stdout.String(), stderr.String())
+		}
+	}
+}

@@ -178,6 +178,13 @@ func statusJSONRequested(args []string) bool {
 	return terminal.json
 }
 
+func statusTerminalError(args []string, terminal terminalOptions, stdout io.Writer, err error) error {
+	if isStatusJSONCommand(args, terminal.json) {
+		return writeStatusJSONError(stdout, err)
+	}
+	return err
+}
+
 func statusArgsError(options statusOptions, stdout io.Writer, err error) error {
 	if errors.Is(err, errHelpDisplayed) {
 		return nil

@@ -288,7 +288,7 @@ func run(args []string, stdout io.Writer, stderr io.Writer) (<-chan string, erro
 		return nil, clearErr
 	}
 	if err != nil {
-		return nil, err
+		return nil, statusTerminalError(args, terminal, stdout, err)
 	}
 	var updateCh <-chan string
 	statusJSON := isStatusJSONCommand(args, terminal.json)

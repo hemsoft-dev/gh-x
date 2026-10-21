@@ -66,6 +66,19 @@ func TestCLIBehaviorStatusJSONEarlyErrors(t *testing.T) {
 	}
 }
 
+func TestCLIBehaviorStatusJSONGlobalErrors(t *testing.T) {
+	for _, args := range [][]string{
+		{"status", "--json", "--clear=wrong"}, {"s", "--clear=wrong", "--json"},
+		{"--clear=wrong", "status", "--json"}, {"status", "--clear", "--json", "--clear=wrong"},
+	} {
+		result := runCLI(t, newFixtureRepository(t), "success", args...)
+		document := decodeStatusJSON(t, result)
+		if result.exitCode == 0 || document.Error == nil || document.Error.Code != "status_failed" || result.calls != "" {
+			t.Fatalf("global option error: %v %+v %+v", args, result, document)
+		}
+	}
+}
+
 func TestCLIBehaviorStatusJSONProtectedWorktrees(t *testing.T) {
 	repository := newFixtureRepository(t)
 	defaultWorktree := filepath.Join(t.TempDir(), "default")
@@ -83,7 +96,7 @@ func TestCLIBehaviorStatusJSONProtectedWorktrees(t *testing.T) {
 			t.Fatalf("protected fixture: %+v %+v", result, document)
 		}
 		for _, worktree := range document.Health.Worktrees.Items {
-			if !worktree.Exists || !worktree.CleanKnown || !worktree.Clean || (worktree.CleanupCandidate && (worktree.Primary || worktree.Current || worktree.Locked || worktree.Path == defaultWorktree)) {
+			if !worktree.Exists || !worktree.CleanKnown || !worktree.Clean || (worktree.CleanupCandidate && (worktree.Primary || worktree.Current || worktree.Locked || filepath.Clean(worktree.Path) == filepath.Clean(defaultWorktree))) {
 				t.Fatalf("protected worktree facts from %s: %+v", directory, worktree)
 			}
 		}
@@ -99,7 +112,7 @@ func TestCLIBehaviorStatusJSONProtectedWorktrees(t *testing.T) {
 	}
 	document := decodeStatusJSON(t, runCLI(t, feature, "success", "status", "--json"))
 	for _, worktree := range document.Health.Worktrees.Items {
-		if worktree.Primary || worktree.Locked || worktree.Path == defaultWorktree {
+		if worktree.Primary || worktree.Locked || filepath.Clean(worktree.Path) == filepath.Clean(defaultWorktree) {
 			if !worktree.Exists || !worktree.CleanKnown || worktree.Clean || worktree.CleanupCandidate {
 				t.Fatalf("dirty protected worktree: %+v", worktree)
 			}
@@ -131,7 +144,7 @@ func TestCLIBehaviorStatusJSON(t *testing.T) {
 	runGit(t, repository, "branch", "--set-upstream-to=origin/main", "main")
 	cold := runCLI(t, repository, "success", "status", "--json", "--refresh")
 	document := decodeStatusJSON(t, cold)
-	if cold.exitCode != 0 || cold.stderr != "" || document.Repository.NameWithOwner != "HemSoft/gh-x" || document.Repository.RootPath != repository || document.Repository.DefaultBranch != "main" {
+	if cold.exitCode != 0 || cold.stderr != "" || document.Repository.NameWithOwner != "HemSoft/gh-x" || filepath.Clean(document.Repository.RootPath) != filepath.Clean(repository) || document.Repository.DefaultBranch != "main" {
 		t.Fatalf("identity/exit: %+v, %+v", cold, document.Repository)
 	}
 	if !document.Health.DefaultBranch.Clean || !document.Health.DefaultBranch.Synced || !document.Health.DefaultBranch.CheckedOut || !document.Health.Branches.Clean || !document.Health.Stashes.Clean || !document.Health.CurrentBranch.Changes.Clean {
