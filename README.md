@@ -139,7 +139,8 @@ and label filters keep the factual `No issues found.` message.
 ## Issue-driven projects
 
 `gh x project` (alias `p`) groups open issues by a GitHub Project v2's Status
-field, in its option order. Issues outside the selected project or without a
+field, in its option order. Archived project items do not count as active
+membership. Issues outside the selected project or without a
 Status appear under `No status`. Empty Status groups remain visible in the
 count header. The default repository resolves from the checkout or `GH_REPO`,
 as with `status`; `-R` overrides it.
@@ -175,7 +176,8 @@ are queried in batches of 30 issues, with additional pages fetched
 for each issue as needed. The operation uses the standard 30-second GitHub timeout
 (`GH_X_GITHUB_TIMEOUT` overrides it). All issue pages are fetched; pull requests returned by the
 REST issues endpoint are excluded.
-Unknown linked PRs or sub-issue counts display `?` with an explanatory hint.
+Linked PRs include closed and merged references. Unknown linked PRs or sub-issue
+counts display `?` with an explanatory hint.
 
 Example (synthetic issues):
 

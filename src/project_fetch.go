@@ -153,7 +153,7 @@ func enrichProjectIssues(ctx context.Context, owner, name, host string, issues [
 	for i, issue := range issues {
 		numbers[i] = issue.Number
 	}
-	refs, missing, relErr := fetchIssueRelationshipsFunc(ctx, owner, name, host, numbers)
+	refs, missing, relErr := fetchProjectPullRequests(ctx, owner, name, host, numbers)
 	summaries, unavailable, hierarchyErr := fetchIssueHierarchiesFunc(ctx, owner, name, host, numbers)
 	for i := range issues {
 		n := issues[i].Number
@@ -336,7 +336,7 @@ func fetchProjectMembershipTail(ctx context.Context, owner, name, host string, n
 }
 
 func projectMembershipField(number int, cursor string) string {
-	return fmt.Sprintf(`issue(number:%d) { projectItems(first:100%s) { nodes { project { id number title url owner { ... on Organization { login } ... on User { login } } } fieldValueByName(name:"Status") { ... on ProjectV2ItemFieldSingleSelectValue { name optionId } } } pageInfo { hasNextPage endCursor } } }`, number, projectAfter(cursor))
+	return fmt.Sprintf(`issue(number:%d) { projectItems(first:100,includeArchived:false%s) { nodes { project { id number title url owner { ... on Organization { login } ... on User { login } } } fieldValueByName(name:"Status") { ... on ProjectV2ItemFieldSingleSelectValue { name optionId } } } pageInfo { hasNextPage endCursor } } }`, number, projectAfter(cursor))
 }
 
 func advanceProjectCursor(cursor *string, page projectPageInfo) error {
@@ -520,4 +520,49 @@ func projectOperationContext() (context.Context, context.CancelFunc, error) {
 	}
 	ctx, cancel := context.WithTimeout(commandContext, timeout)
 	return ctx, cancel, nil
+}
+
+// Project reports include all linked PRs, including closed and merged records.
+// Status keeps its existing acquisition query and serialized behavior.
+func fetchProjectPullRequests(ctx context.Context, owner, name, host string, numbers []int) (map[int][]linkedReference, map[int]bool, error) {
+	result := map[int][]linkedReference{}
+	missing := map[int]bool{}
+	var firstErr error
+	for start := 0; start < len(numbers); start += relationshipBatchSize {
+		if err := markCanceledRelationships(ctx, numbers[start:], missing); err != nil {
+			firstErr = retainFirstError(firstErr, err)
+			break
+		}
+		batch, unavailable, err := fetchProjectPullRequestsBatch(ctx, owner, name, host, numbers[start:min(start+relationshipBatchSize, len(numbers))])
+		for number, refs := range batch {
+			result[number] = refs
+		}
+		for number := range unavailable {
+			missing[number] = true
+		}
+		firstErr = retainFirstError(firstErr, err)
+	}
+	return result, missing, firstPartialFetchError(firstErr, missing, len(numbers), "issues")
+}
+
+func fetchProjectPullRequestsBatch(ctx context.Context, owner, name, host string, numbers []int) (map[int][]linkedReference, map[int]bool, error) {
+	fields := make([]string, 0, len(numbers))
+	for _, number := range numbers {
+		fields = append(fields, fmt.Sprintf(`issue%d: issue(number: %d) { number closedByPullRequestsReferences(first: 100, includeClosedPrs:true) { totalCount nodes { number url } } }`, number, number))
+	}
+	query := fmt.Sprintf(`query { repository(owner:%q,name:%q) { %s } }`, owner, name, strings.Join(fields, " "))
+	raw, err := fetchGraphQLContext(ctx, host, query)
+	missing := unavailableIssueNumbers(numbers, nil)
+	if raw == nil {
+		return nil, missing, err
+	}
+	refs, failed, parseErr := parseIssueRelationships(raw)
+	if parseErr != nil {
+		return nil, missing, errors.Join(err, parseErr)
+	}
+	missing = unavailableIssueNumbers(numbers, refs)
+	for number := range failed {
+		missing[number] = true
+	}
+	return refs, missing, err
 }

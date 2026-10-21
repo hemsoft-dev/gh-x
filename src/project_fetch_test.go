@@ -262,3 +262,70 @@ func TestProjectMembershipBatchBudget(t *testing.T) {
 		t.Fatalf("batch budget issues=%d batches=%d tails=%d issue31=%d err=%v", len(got), batchCalls, tailCalls, len(got[31]), err)
 	}
 }
+
+func TestProjectPullRequestAcquisition(t *testing.T) {
+	for _, tc := range []struct {
+		name, raw      string
+		transportError bool
+	}{
+		{"missing alias", `{"data":{"repository":{}}}`, false},
+		{"bad JSON", `{`, false},
+		{"truncated", `{"data":{"repository":{"issue230":{"number":230,"closedByPullRequestsReferences":{"totalCount":2,"nodes":[{"number":231,"url":"pr"}]}}}}}`, false},
+		{"partial error", `{"data":{"repository":{"issue230":{"number":230,"closedByPullRequestsReferences":null}}},"errors":[{"message":"denied","path":["repository","issue230","closedByPullRequestsReferences"]}]}`, true},
+		{"offline", "", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			projectExecutor(t, func(string) (string, error) {
+				var err error
+				if tc.transportError {
+					err = errors.New("transport failure")
+				}
+				return tc.raw, err
+			})
+			_, missing, err := fetchProjectPullRequests(context.Background(), "example", "loops", "github.com", []int{230})
+			if err == nil || !missing[230] {
+				t.Fatalf("incomplete relationship data treated as complete: missing%v error%v", missing, err)
+			}
+		})
+	}
+	t.Run("cancelled", func(t *testing.T) {
+		projectExecutor(t, func(string) (string, error) { t.Fatal("cancelled acquisition made a request"); return "", nil })
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		_, missing, err := fetchProjectPullRequests(ctx, "example", "loops", "github.com", []int{1, 2})
+		if !errors.Is(err, context.Canceled) || len(missing) != 2 {
+			t.Fatalf("cancellation lost: %v %v", missing, err)
+		}
+	})
+	t.Run("batches", func(t *testing.T) {
+		numbers := make([]int, 65)
+		for i := range numbers {
+			numbers[i] = i + 1
+		}
+		calls := 0
+		projectExecutor(t, func(query string) (string, error) {
+			calls++
+			if !strings.Contains(query, "includeClosedPrs:true") {
+				t.Fatal("closed PRs omitted")
+			}
+			matches := regexp.MustCompile(`issue\(number: (\d+)\)`).FindAllStringSubmatch(query, -1)
+			if len(matches) > relationshipBatchSize {
+				t.Fatalf("unbounded PR batch %d", len(matches))
+			}
+			repository := map[string]any{}
+			for _, match := range matches {
+				n, err := strconv.Atoi(match[1])
+				if err != nil {
+					t.Fatal(err)
+				}
+				repository["issue"+match[1]] = map[string]any{"number": n, "closedByPullRequestsReferences": map[string]any{"totalCount": 1, "nodes": []any{map[string]any{"number": n + 1000, "url": "https://github.com/example/loops/pull/" + strconv.Itoa(n+1000)}}}}
+			}
+			raw, err := json.Marshal(map[string]any{"data": map[string]any{"repository": repository}})
+			return string(raw), err
+		})
+		got, missing, err := fetchProjectPullRequests(context.Background(), "example", "loops", "github.com", numbers)
+		if err != nil || len(missing) != 0 || calls != 3 || len(got) != 65 || got[65][0].Number != 1065 {
+			t.Fatalf("batched PR acquisition: issues%d missing%v calls%d error%v", len(got), missing, calls, err)
+		}
+	})
+}

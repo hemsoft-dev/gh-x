@@ -201,3 +201,54 @@ func TestProjectHiddenClassification(t *testing.T) {
 		}
 	}
 }
+
+func TestProjectMembershipQueriesExcludeArchived(t *testing.T) {
+	calls := 0
+	projectExecutor(t, func(query string) (string, error) {
+		calls++
+		if !strings.Contains(query, "includeArchived:false") {
+			t.Fatalf("membership request includes archived board items: %s", query)
+		}
+		raw := projectBatchFixture(t, query, string(projectFixture(t, "memberships")))
+		var body map[string]any
+		if err := json.Unmarshal([]byte(raw), &body); err != nil {
+			t.Fatal(err)
+		}
+		repository := body["data"].(map[string]any)["repository"].(map[string]any)
+		for _, value := range repository {
+			page := value.(map[string]any)["projectItems"].(map[string]any)
+			page["pageInfo"] = map[string]any{"hasNextPage": calls == 1, "endCursor": "next"}
+			if calls > 1 {
+				page["nodes"] = []any{}
+			}
+		}
+		data, err := json.Marshal(body)
+		return string(data), err
+	})
+	got, err := fetchProjectMemberships(context.Background(), "example", "loops", "github.com", []projectIssue{{Number: 1}})
+	if err != nil || calls != 2 || len(got[1]) != 1 {
+		t.Fatalf("active membership pagination: %+v calls%d error%v", got, calls, err)
+	}
+}
+
+func TestProjectRecordedMergedClosingPR(t *testing.T) {
+	projectExecutor(t, func(query string) (string, error) {
+		if strings.Contains(query, "closedByPullRequestsReferences") {
+			if !strings.Contains(query, "includeClosedPrs:true") {
+				t.Fatalf("project query must include closed and merged PRs: %s", query)
+			}
+			return string(projectFixture(t, "merged-closing-pr")), nil
+		}
+		if strings.Contains(query, "subIssuesSummary") {
+			return `{"data":{"repository":{"issue230":{"number":230,"parent":null,"subIssuesSummary":{"completed":0,"total":0}}}}}`, nil
+		}
+		t.Fatalf("unexpected request: %s", query)
+		return "", nil
+	})
+	issues := []projectIssue{{Number: 230}}
+	var data projectData
+	enrichProjectIssues(context.Background(), "hemsoft-dev", "gh-x", "github.com", issues, &data)
+	if len(issues[0].PullRequests) != 1 || issues[0].PullRequests[0].Number != 231 || issues[0].PullRequests[0].URL != "https://github.com/hemsoft-dev/gh-x/pull/231" || len(data.Hints) != 0 {
+		t.Fatalf("merged closing PR lost: %+v hints%v", issues, data.Hints)
+	}
+}

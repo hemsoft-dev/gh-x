@@ -21,3 +21,9 @@ and sub-issue enrichment values are synthetic and explicitly asserted.
 GitHub Actions token on 2026-10-21. The request selected an existing org project
 that the installation token could not access; the response contains no private
 project metadata or credentials.
+
+`merged-closing-pr.json` records the repository issue relationship query without
+`includeClosedPrs` on 2026-10-21, and the explicit true variant returned identical
+bytes. The API returns merged PR 231 for issue 230.
+The current producer also includes that PR in the recently closed section;
+merged closing PRs are not lost by the shared relationship collector.
