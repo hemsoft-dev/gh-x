@@ -46,6 +46,7 @@ type terminalFlagScan struct {
 func extractTerminalOptions(args []string) ([]string, terminalOptions, error) {
 	var scan terminalFlagScan
 	var firstErr error
+	var clearBeforeError bool
 	cleaned := make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
@@ -57,6 +58,7 @@ func extractTerminalOptions(args []string) ([]string, terminalOptions, error) {
 		if err != nil {
 			if firstErr == nil {
 				firstErr = err
+				clearBeforeError = scan.options.clear
 			}
 			// Keep scanning so JSON error envelopes also work when a bad
 			// global option occurs before the command or its --json flag.
@@ -70,6 +72,11 @@ func extractTerminalOptions(args []string) ([]string, terminalOptions, error) {
 			i++
 			cleaned = append(cleaned, args[i])
 		}
+	}
+	if firstErr != nil {
+		// Non-JSON commands retain the terminal state at the old stopping
+		// point; later options are scanned only to choose an error format.
+		scan.options.clear = clearBeforeError
 	}
 	return cleaned, scan.options, firstErr
 }

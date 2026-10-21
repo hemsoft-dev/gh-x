@@ -356,3 +356,20 @@ func TestStatusJSONGlobalErrorsNeverClear(t *testing.T) {
 		}
 	}
 }
+
+func TestStatusGlobalErrorPreservesEarlierClearState(t *testing.T) {
+	forceTerminal(t, true)
+	for _, tt := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"--clear=wrong", "status", "--clear"}, ""},
+		{[]string{"--clear", "status", "--clear=wrong", "--clear=false"}, terminalClearSequence},
+	} {
+		var stdout, stderr bytes.Buffer
+		_, err := run(tt.args, &stdout, &stderr)
+		if err == nil || stdout.String() != tt.want {
+			t.Fatalf("terminal state %v: err=%v stdout=%q want=%q", tt.args, err, stdout.String(), tt.want)
+		}
+	}
+}
