@@ -226,6 +226,94 @@ Automatic release checks cache successful results for one hour; `gh x version`
 forces a new check. See the [status freshness guide](docs/status-performance.md)
 for authentication isolation, cooldowns and safe cache diagnostics.
 
+### JSON status for programs
+
+`gh x status --json` writes exactly one JSON object to stdout. It uses the same
+collection, cache, enrichment and health rules as the terminal view. It skips
+animation, screen clearing, the banner and update checks, including with
+`--clear`. `gh x s --json` is equivalent. `--merged` and `--refresh` still apply.
+
+```bash
+gh x status --json | jq .schemaVersion
+gh x status --json --refresh --merged=0
+```
+
+Example with empty GitHub lists and the merged section disabled. This example
+omits worktree items for space; real output includes every worktree:
+
+```json
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-21T02:30:00-04:00",
+  "repository": {
+    "nameWithOwner": "hemsoft-dev/gh-x",
+    "rootPath": "/home/franz/github/hemsoft/gh-x",
+    "defaultBranch": "main"
+  },
+  "health": {
+    "defaultBranch": {
+      "status": "available", "reason": "", "clean": true,
+      "name": "main", "checkedOut": true, "upstream": "origin/main",
+      "synced": true, "ahead": 0, "behind": 0,
+      "changes": {
+        "clean": true, "staged": 0, "modified": 0, "deleted": 0,
+        "renamed": 0, "untracked": 0, "conflicted": 0
+      }
+    },
+    "currentBranch": {
+      "status": "available", "reason": "", "clean": true,
+      "name": "main", "checkedOut": true, "upstream": "origin/main",
+      "synced": true, "ahead": 0, "behind": 0,
+      "changes": {
+        "clean": true, "staged": 0, "modified": 0, "deleted": 0,
+        "renamed": 0, "untracked": 0, "conflicted": 0
+      }
+    },
+    "branches": {
+      "status": "available", "reason": "", "clean": true,
+      "local": 1, "remote": 1, "dangling": 0
+    },
+    "worktrees": {
+      "status": "available", "reason": "", "clean": true,
+      "total": 1, "cleanupCandidates": 0, "items": []
+    },
+    "stashes": {"status": "available", "reason": "", "clean": true, "count": 0}
+  },
+  "issues": [],
+  "pullRequests": {"open": [], "merged": [], "mergedLimit": 0},
+  "workflowRuns": [],
+  "workflowRunsPerfect": false,
+  "sections": [
+    {"name": "issues", "status": "available", "reason": "", "cached": false,
+      "fetchedAt": "2026-10-21T02:30:00-04:00", "cacheAgeSeconds": 0},
+    {"name": "pullRequests.open", "status": "available", "reason": "", "cached": false,
+      "fetchedAt": "2026-10-21T02:30:00-04:00", "cacheAgeSeconds": 0},
+    {"name": "pullRequests.merged", "status": "disabled", "reason": "", "cached": false,
+      "fetchedAt": null, "cacheAgeSeconds": 0},
+    {"name": "workflowRuns", "status": "available", "reason": "", "cached": false,
+      "fetchedAt": "2026-10-21T02:30:00-04:00", "cacheAgeSeconds": 0}
+  ]
+}
+```
+
+`schemaVersion: 1` is the public contract version, independent of the internal
+cache version. Consumers should ignore unknown fields. Adding fields is
+compatible; removing fields or changing their types or meanings requires a new
+schema version. Arrays are always arrays, including when empty. Unknown optional
+timestamps and `aiClean` are `null`. Timestamps use RFC 3339; producers emit UTC.
+The example uses an Eastern offset for readability.
+
+GitHub failures do not fail the command. The matching `sections` entry becomes
+`unavailable` with a `reason`; local health and other lists remain available.
+Enrichment failures also make that section unavailable while retaining its rows.
+Read the section status before treating an empty list as an empty backlog.
+Fatal local collection errors, including a non-Git directory, return a nonzero
+exit code with `{"schemaVersion":1,"generatedAt":"...","error":{"code":"status_failed","message":"..."}}`.
+Diagnostics may appear on stderr; stdout contains only the document.
+
+See the [version 1 field reference](docs/status-json.md) for every field, cache
+provenance, display values and failure semantics.
+
 ## What `gh x pr list` adds
 
 Compared to `gh pr list`, this command keeps all existing filters but renders a denser, color-coded table:

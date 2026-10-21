@@ -1,7 +1,8 @@
 # Changelog
 
 GitHub Releases is the authoritative source for published release notes and
-version history. This file links the latest published release, compares it with
+version history. The [status JSON schema](docs/status-json.md) has its own
+contract version, independent of application releases. This file links the latest published release, compares it with
 the current branch, and preserves notes from the repository's earlier versioning
 scheme.
 

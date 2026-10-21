@@ -291,7 +291,8 @@ func run(args []string, stdout io.Writer, stderr io.Writer) (<-chan string, erro
 		return nil, err
 	}
 	var updateCh <-chan string
-	skipUpdate := len(args) > 0 && shouldSkipUpdateCheck(args[0])
+	statusJSON := isStatusJSONCommand(args, terminal.json)
+	skipUpdate := statusJSON || (len(args) > 0 && shouldSkipUpdateCheck(args[0]))
 	if !skipUpdate && version != "dev" {
 		updateCh = asyncUpdateCheck()
 	}
@@ -301,7 +302,7 @@ func run(args []string, stdout io.Writer, stderr io.Writer) (<-chan string, erro
 		writeRootUsage(stdout)
 	} else {
 		cmd := resolveCommand(args[0])
-		if cmd.banner {
+		if cmd.banner && !statusJSON {
 			printBanner(stderr)
 		}
 		err = cmd.handler(args[1:], stdout, stderr)
