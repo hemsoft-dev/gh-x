@@ -73,6 +73,7 @@ type statusDashboard struct {
 	WorktreesPending          bool
 	cacheState                string
 	remoteSections            []statusCacheSection
+	remoteCached              [4]bool
 	Repository                string
 	RepositoryURL             string
 	DefaultBranch             string
@@ -112,16 +113,18 @@ const (
 type statusOptions struct {
 	mergedLimit int
 	refresh     bool
+	json        bool
 	progress    *statusProgress
 }
 
 func runStatus(args []string, stdout io.Writer, stderr io.Writer) error {
 	options, err := parseStatusArgs(args, stderr)
 	if err != nil {
-		if errors.Is(err, errHelpDisplayed) {
-			return nil
-		}
-		return err
+		return statusArgsError(options, stdout, err)
+	}
+
+	if options.json {
+		return runStatusJSON(options, stdout)
 	}
 
 	colorEnabled := term.FromEnv().IsColorEnabled()
@@ -159,6 +162,7 @@ func statusFlags(options *statusOptions, stderr io.Writer) *flag.FlagSet {
 		writeStatusUsage(stderr)
 	}
 	flags.IntVar(&options.mergedLimit, "merged", statusMergedDefaultLimit, "number of recently merged pull requests to show; 0 hides the section")
+	flags.BoolVar(&options.json, "json", false, "write a versioned JSON status document")
 	flags.BoolVar(&options.refresh, "refresh", false, "bypass cached GitHub data and refresh it")
 
 	return flags
@@ -168,18 +172,20 @@ func parseStatusArgs(args []string, stderr io.Writer) (statusOptions, error) {
 	options := statusOptions{mergedLimit: statusMergedDefaultLimit}
 	flags := statusFlags(&options, stderr)
 
-	if err := flags.Parse(args); err != nil {
+	parseErr := flags.Parse(args)
+	options.json = statusJSONRequested(args)
+	if err := parseErr; err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return statusOptions{}, errHelpDisplayed
 		}
-		return statusOptions{}, err
+		return options, err
 	}
 
 	if flags.NArg() > 0 {
-		return statusOptions{}, fmt.Errorf("unexpected arguments: %s", strings.Join(flags.Args(), ", "))
+		return options, fmt.Errorf("unexpected arguments: %s", strings.Join(flags.Args(), ", "))
 	}
 	if options.mergedLimit < 0 {
-		return statusOptions{}, fmt.Errorf("--merged must be 0 or greater")
+		return options, fmt.Errorf("--merged must be 0 or greater")
 	}
 
 	return options, nil
@@ -398,6 +404,10 @@ func applyStatusCache(dashboard *statusDashboard, cached statusCacheEntry, now t
 	dashboard.WorkflowRunsPerfect = cached.WorkflowRunsPerfect
 	restoreStatusFailures(dashboard, cached.Failures)
 	dashboard.remoteSections = append([]statusCacheSection(nil), cached.Sections...)
+	if len(dashboard.remoteSections) == 0 {
+		dashboard.remoteSections = cacheStatusSections(*dashboard, cached.FetchedAt)
+	}
+	dashboard.remoteCached = [4]bool{true, true, true, true}
 	return statusStringSet(cached.PullRequestHeads), cached.PullRequestsKnown
 }
 
@@ -666,6 +676,10 @@ func assessStatusWorktreeCleanliness(worktree *statusWorktree, defaultBranch str
 	if worktree.Prunable || worktree.Primary || worktree.Current || worktree.Locked || worktree.Branch == defaultBranch {
 		return
 	}
+	inspectStatusWorktreeCleanliness(worktree)
+}
+
+func inspectStatusWorktreeCleanliness(worktree *statusWorktree) {
 	worktree.Exists = statusPathExistsFunc(worktree.Path)
 	if !worktree.Exists {
 		return
@@ -954,8 +968,7 @@ func statusDefaultBranchCell(styler tableStyler, dashboard statusDashboard) tabl
 func statusDefaultBranchRow(styler tableStyler, dashboard statusDashboard) []tableCell {
 	marker := styler.plain("")
 	ref := dashboard.Branches.Local[dashboard.DefaultBranch]
-	if dashboard.DefaultBranch != "" && dashboard.DefaultCheckedOut && dashboard.DefaultStatusErr == nil &&
-		statusBranchSeverity(dashboard.DefaultStatus) == statusHealthy && !strings.Contains(ref.Track, "[gone]") {
+	if statusDefaultBranchClean(dashboard, ref) {
 		marker = styler.colored("✓", termenv.ANSIGreen)
 	}
 	return []tableCell{marker, styler.dim(statusDefaultBranchLabel(dashboard.DefaultBranch)), statusDefaultBranchCell(styler, dashboard)}
@@ -1010,14 +1023,14 @@ func statusBranchSeverity(summary statusSummary) statusSeverity {
 
 func statusBranchInventoryRow(styler tableStyler, inventory statusBranchInventory) []tableCell {
 	text := fmt.Sprintf("%d local (%d dangling) · %d remote", inventory.LocalCount, inventory.DanglingCount, inventory.RemoteCount)
-	clean := inventory.LocalCount == 1 && inventory.DanglingCount == 0 && inventory.RemoteCount == 1
+	clean := statusBranchesClean(inventory)
 	return statusInventoryRow(styler, "Branches", text, clean)
 }
 
 func statusWorktreeInventoryRow(styler tableStyler, worktrees []statusWorktree) []tableCell {
 	candidates := statusCleanupCandidateCount(worktrees)
 	text := fmt.Sprintf("%d total · %d cleanup %s", len(worktrees), candidates, pluralWord(candidates, "candidate", "candidates"))
-	return statusInventoryRow(styler, "Worktrees", text, len(worktrees) == 1 && candidates == 0)
+	return statusInventoryRow(styler, "Worktrees", text, statusWorktreesClean(worktrees))
 }
 
 func statusStashInventoryRow(styler tableStyler, count int, err error) []tableCell {
@@ -1208,5 +1221,6 @@ recently merged pull requests, and the five most recent workflow runs.
 
 Flags:
       --merged int   Number of recently merged pull requests to show; 0 hides the section (default 5)
+      --json         Write one versioned JSON status document
       --refresh      Bypass cached GitHub data and refresh it
 `

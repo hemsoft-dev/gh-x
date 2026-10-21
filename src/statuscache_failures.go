@@ -60,6 +60,7 @@ func markStatusSectionFetch(dashboard *statusDashboard, section int, now time.Ti
 		dashboard.remoteSections = make([]statusCacheSection, 4)
 	}
 	dashboard.remoteSections[section] = statusCacheSection{FetchedAt: now}
+	dashboard.remoteCached[section] = false
 }
 
 func cacheStatusSections(dashboard statusDashboard, now time.Time) []statusCacheSection {

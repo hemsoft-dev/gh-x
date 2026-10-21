@@ -1,0 +1,240 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-21T06:30:00Z",
+  "repository": {
+    "nameWithOwner": "owner/repo",
+    "rootPath": "/repo",
+    "defaultBranch": "main"
+  },
+  "health": {
+    "defaultBranch": {
+      "status": "available",
+      "reason": "",
+      "clean": true,
+      "name": "main",
+      "checkedOut": true,
+      "upstream": "origin/main",
+      "synced": true,
+      "ahead": 0,
+      "behind": 0,
+      "changes": {
+        "clean": true,
+        "staged": 0,
+        "modified": 0,
+        "deleted": 0,
+        "renamed": 0,
+        "untracked": 0,
+        "conflicted": 0
+      }
+    },
+    "currentBranch": {
+      "status": "available",
+      "reason": "",
+      "clean": false,
+      "name": "feature/status",
+      "checkedOut": true,
+      "upstream": "origin/main",
+      "synced": true,
+      "ahead": 0,
+      "behind": 0,
+      "changes": {
+        "clean": false,
+        "staged": 0,
+        "modified": 1,
+        "deleted": 0,
+        "renamed": 0,
+        "untracked": 0,
+        "conflicted": 0
+      }
+    },
+    "branches": {
+      "status": "available",
+      "reason": "",
+      "clean": false,
+      "local": 3,
+      "remote": 2,
+      "dangling": 1
+    },
+    "worktrees": {
+      "status": "available",
+      "reason": "",
+      "clean": false,
+      "total": 3,
+      "cleanupCandidates": 1,
+      "items": [
+        {
+          "path": "C:/repo",
+          "head": "",
+          "branch": "main",
+          "detached": false,
+          "detachedMerged": false,
+          "locked": false,
+          "prunable": false,
+          "prunableReason": "",
+          "primary": true,
+          "current": false,
+          "exists": false,
+          "clean": false,
+          "cleanKnown": false,
+          "cleanupCandidate": false,
+          "cleanupReason": ""
+        },
+        {
+          "path": "C:/repo.worktrees/current",
+          "head": "",
+          "branch": "feature/status",
+          "detached": false,
+          "detachedMerged": false,
+          "locked": false,
+          "prunable": false,
+          "prunableReason": "",
+          "primary": false,
+          "current": true,
+          "exists": false,
+          "clean": false,
+          "cleanKnown": false,
+          "cleanupCandidate": false,
+          "cleanupReason": ""
+        },
+        {
+          "path": "C:/repo.worktrees/old",
+          "head": "",
+          "branch": "old",
+          "detached": false,
+          "detachedMerged": false,
+          "locked": false,
+          "prunable": false,
+          "prunableReason": "",
+          "primary": false,
+          "current": false,
+          "exists": false,
+          "clean": false,
+          "cleanKnown": false,
+          "cleanupCandidate": true,
+          "cleanupReason": "clean, merged branch with no open PR"
+        }
+      ]
+    },
+    "stashes": {
+      "status": "available",
+      "reason": "",
+      "clean": true,
+      "count": 0
+    }
+  },
+  "issues": [
+    {
+      "number": 7,
+      "pullRequests": "",
+      "parent": "",
+      "subIssues": "",
+      "title": "Status dashboard",
+      "author": "alice",
+      "state": "open",
+      "labels": "",
+      "assignees": "",
+      "updated": "1m",
+      "updatedAt": null,
+      "url": "https://github.com/owner/repo/issues/7"
+    }
+  ],
+  "pullRequests": {
+    "open": [
+      {
+        "number": 2,
+        "issues": "",
+        "title": "Open PR",
+        "author": "bob",
+        "state": "open",
+        "review": "required",
+        "approvals": 0,
+        "approvers": [],
+        "approvalsIncomplete": false,
+        "checks": "pending",
+        "comments": "-",
+        "aiReview": "-",
+        "aiClean": null,
+        "branch": "feature",
+        "updated": "2m",
+        "updatedAt": null,
+        "mergedAt": null,
+        "url": "https://github.com/owner/repo/pull/2"
+      }
+    ],
+    "merged": [
+      {
+        "number": 138,
+        "issues": "",
+        "title": "Merged PR",
+        "author": "carol",
+        "state": "merged",
+        "review": "approved",
+        "approvals": 0,
+        "approvers": [],
+        "approvalsIncomplete": false,
+        "checks": "pass",
+        "comments": "-",
+        "aiReview": "pass",
+        "aiClean": null,
+        "branch": "merged-feature",
+        "updated": "3m",
+        "updatedAt": null,
+        "mergedAt": null,
+        "url": "https://github.com/owner/repo/pull/138"
+      }
+    ],
+    "mergedLimit": 5
+  },
+  "workflowRuns": [
+    {
+      "id": "808",
+      "url": "https://github.com/owner/repo/actions/runs/808",
+      "status": "✓",
+      "rawStatus": "",
+      "title": "Status run",
+      "workflow": "CI",
+      "branch": "main",
+      "event": "push",
+      "elapsed": "8s",
+      "age": "1m",
+      "createdAt": null,
+      "startedAt": null,
+      "updatedAt": null
+    }
+  ],
+  "workflowRunsPerfect": false,
+  "sections": [
+    {
+      "name": "issues",
+      "status": "available",
+      "reason": "",
+      "cached": false,
+      "fetchedAt": null,
+      "cacheAgeSeconds": 0
+    },
+    {
+      "name": "pullRequests.open",
+      "status": "available",
+      "reason": "",
+      "cached": false,
+      "fetchedAt": null,
+      "cacheAgeSeconds": 0
+    },
+    {
+      "name": "pullRequests.merged",
+      "status": "available",
+      "reason": "",
+      "cached": false,
+      "fetchedAt": null,
+      "cacheAgeSeconds": 0
+    },
+    {
+      "name": "workflowRuns",
+      "status": "available",
+      "reason": "",
+      "cached": false,
+      "fetchedAt": null,
+      "cacheAgeSeconds": 0
+    }
+  ]
+}
