@@ -290,13 +290,10 @@ func run(args []string, stdout io.Writer, stderr io.Writer) (<-chan string, erro
 		return nil, clearErr
 	}
 	if err != nil {
-		if isProjectJSONCommand(args, terminal.json) {
-			return nil, writeProjectError(stdout, err)
-		}
-		return nil, statusTerminalError(args, terminal, stdout, err)
+		return nil, commandTerminalError(args, terminal, stdout, err)
 	}
 	var updateCh <-chan string
-	statusJSON := isStatusJSONCommand(args, terminal.json) || isProjectJSONCommand(args, terminal.json)
+	statusJSON := machineJSONCommand(args, terminal.json)
 	skipUpdate := statusJSON || (len(args) > 0 && shouldSkipUpdateCheck(args[0]))
 	if !skipUpdate && version != "dev" {
 		updateCh = asyncUpdateCheck()

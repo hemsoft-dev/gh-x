@@ -306,3 +306,14 @@ func projectCell(value string) string {
 func isProjectJSONCommand(args []string, enabled bool) bool {
 	return enabled && len(args) > 0 && (args[0] == "project" || args[0] == "p")
 }
+
+func machineJSONCommand(args []string, enabled bool) bool {
+	return isStatusJSONCommand(args, enabled) || isProjectJSONCommand(args, enabled)
+}
+
+func commandTerminalError(args []string, terminal terminalOptions, out io.Writer, err error) error {
+	if isProjectJSONCommand(args, terminal.json) {
+		return writeProjectError(out, err)
+	}
+	return statusTerminalError(args, terminal, out, err)
+}
