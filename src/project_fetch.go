@@ -89,7 +89,11 @@ func statusJSONTimePointer(value *time.Time) *time.Time {
 }
 
 func fetchProjectData(o projectOptions, now time.Time) (projectData, error) {
-	ctx := commandContext
+	ctx, cancel, err := projectOperationContext()
+	if err != nil {
+		return projectData{}, err
+	}
+	defer cancel()
 	owner, name, err := resolveRepoContext(ctx, o.repo)
 	if err != nil {
 		return projectData{}, err
@@ -204,31 +208,94 @@ type projectMembershipPage struct {
 
 func fetchProjectMemberships(ctx context.Context, owner, name, host string, issues []projectIssue) (map[int][]projectMembership, error) {
 	result := map[int][]projectMembership{}
-	for _, issue := range issues {
-		items, err := fetchIssueProjectMemberships(ctx, owner, name, host, issue.Number)
+	for start := 0; start < len(issues); start += relationshipBatchSize {
+		batch := issues[start:min(start+relationshipBatchSize, len(issues))]
+		pages, err := fetchProjectMembershipBatch(ctx, owner, name, host, batch)
 		if err != nil {
 			return nil, err
 		}
-		result[issue.Number] = items
+		for _, issue := range batch {
+			items, err := completeProjectMemberships(ctx, owner, name, host, issue.Number, pages[issue.Number])
+			if err != nil {
+				return nil, err
+			}
+			result[issue.Number] = items
+		}
 	}
 	return result, nil
 }
 
-func fetchIssueProjectMemberships(ctx context.Context, owner, name, host string, number int) ([]projectMembership, error) {
-	result := []projectMembership{}
+type projectMembershipNode struct {
+	ProjectItems *projectMembershipPage `json:"projectItems"`
+}
+
+func fetchProjectMembershipBatch(ctx context.Context, owner, name, host string, issues []projectIssue) (map[int]projectMembershipPage, error) {
+	fields := make([]string, 0, len(issues))
+	for _, issue := range issues {
+		fields = append(fields, fmt.Sprintf("issue%d: %s", issue.Number, projectMembershipField(issue.Number, "")))
+	}
+	query := fmt.Sprintf(`query { repository(owner:%q,name:%q) { %s } }`, owner, name, strings.Join(fields, " "))
+	var raw struct {
+		Repository map[string]*projectMembershipNode `json:"repository"`
+	}
+	if err := projectQuery(ctx, host, query, &raw); err != nil {
+		return nil, err
+	}
+	result := map[int]projectMembershipPage{}
+	for _, issue := range issues {
+		node := raw.Repository[fmt.Sprintf("issue%d", issue.Number)]
+		if !validProjectMembershipNode(node) {
+			return nil, fmt.Errorf("project memberships for issue #%d unavailable", issue.Number)
+		}
+		result[issue.Number] = *node.ProjectItems
+	}
+	return result, nil
+}
+
+func validProjectMembershipNode(node *projectMembershipNode) bool {
+	return node != nil && node.ProjectItems != nil && node.ProjectItems.Nodes != nil
+}
+
+func completeProjectMemberships(ctx context.Context, owner, name, host string, number int, page projectMembershipPage) ([]projectMembership, error) {
+	result, err := decodeProjectMemberships(page.Nodes)
+	if err != nil || !page.PageInfo.HasNextPage {
+		return result, err
+	}
 	cursor := ""
+	if err = advanceProjectCursor(&cursor, page.PageInfo); err != nil {
+		return nil, err
+	}
+	tail, err := fetchProjectMembershipTail(ctx, owner, name, host, number, cursor)
+	if err != nil {
+		return nil, err
+	}
+	return append(result, tail...), nil
+}
+
+func decodeProjectMemberships(nodes []json.RawMessage) ([]projectMembership, error) {
+	result := make([]projectMembership, 0, len(nodes))
+	for _, node := range nodes {
+		m, err := decodeProjectMembership(node)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, m)
+	}
+	return result, nil
+}
+
+func fetchProjectMembershipTail(ctx context.Context, owner, name, host string, number int, cursor string) ([]projectMembership, error) {
+	result := []projectMembership{}
 	for {
 		page, err := fetchProjectMembershipPage(ctx, owner, name, host, number, cursor)
 		if err != nil {
 			return nil, err
 		}
-		for _, node := range page.Nodes {
-			m, err := decodeProjectMembership(node)
-			if err != nil {
-				return nil, err
-			}
-			result = append(result, m)
+		items, err := decodeProjectMemberships(page.Nodes)
+		if err != nil {
+			return nil, err
 		}
+		result = append(result, items...)
 		if !page.PageInfo.HasNextPage {
 			return result, nil
 		}
@@ -236,6 +303,10 @@ func fetchIssueProjectMemberships(ctx context.Context, owner, name, host string,
 			return nil, err
 		}
 	}
+}
+
+func projectMembershipField(number int, cursor string) string {
+	return fmt.Sprintf(`issue(number:%d) { projectItems(first:100%s) { nodes { project { id number title url owner { ... on Organization { login } ... on User { login } } } fieldValueByName(name:"Status") { ... on ProjectV2ItemFieldSingleSelectValue { name optionId } } } pageInfo { hasNextPage endCursor } } }`, number, projectAfter(cursor))
 }
 
 func advanceProjectCursor(cursor *string, page projectPageInfo) error {
@@ -247,18 +318,17 @@ func advanceProjectCursor(cursor *string, page projectPageInfo) error {
 }
 
 func fetchProjectMembershipPage(ctx context.Context, owner, name, host string, number int, cursor string) (projectMembershipPage, error) {
-	q := fmt.Sprintf(`query { repository(owner:%q,name:%q) { issue(number:%d) { projectItems(first:100%s) { nodes { project { id number title url owner { ... on Organization { login } ... on User { login } } } fieldValueByName(name:"Status") { ... on ProjectV2ItemFieldSingleSelectValue { name optionId } } } pageInfo { hasNextPage endCursor } } } } }`, owner, name, number, projectAfter(cursor))
+	q := fmt.Sprintf(`query { repository(owner:%q,name:%q) { %s } }`, owner, name, projectMembershipField(number, cursor))
 	var raw struct {
 		Repository struct {
-			Issue *struct {
-				ProjectItems *projectMembershipPage `json:"projectItems"`
-			} `json:"issue"`
+			Issue *projectMembershipNode `json:"issue"`
 		} `json:"repository"`
 	}
+
 	if err := projectQuery(ctx, host, q, &raw); err != nil {
 		return projectMembershipPage{}, err
 	}
-	if raw.Repository.Issue == nil || raw.Repository.Issue.ProjectItems == nil || raw.Repository.Issue.ProjectItems.Nodes == nil {
+	if !validProjectMembershipNode(raw.Repository.Issue) {
 		return projectMembershipPage{}, fmt.Errorf("project memberships for issue #%d unavailable", number)
 	}
 	return *raw.Repository.Issue.ProjectItems, nil
@@ -408,4 +478,13 @@ func fetchProjectFields(ctx context.Context, host, owner string, number int, cur
 		return nil, errors.New("project metadata incomplete")
 	}
 	return p, nil
+}
+
+func projectOperationContext() (context.Context, context.CancelFunc, error) {
+	timeout, err := configuredTimeout(githubCommandTimeoutEnv, defaultGitHubCommandTimeout)
+	if err != nil {
+		return nil, nil, err
+	}
+	ctx, cancel := context.WithTimeout(commandContext, timeout)
+	return ctx, cancel, nil
 }

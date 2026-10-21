@@ -46,6 +46,7 @@ type projectIssue struct {
 }
 
 type projectGroup struct {
+	ID     string         `json:"id"`
 	Name   string         `json:"name"`
 	Count  int            `json:"count"`
 	Issues []projectIssue `json:"issues"`
@@ -146,14 +147,15 @@ func parseProjectOptions(args []string, out io.Writer) (projectOptions, error) {
 func runProject(args []string, stdout, stderr io.Writer) error {
 	o, err := parseProjectOptions(args, io.Discard)
 	if errors.Is(err, errHelpDisplayed) {
-		fmt.Fprint(stdout, projectUsage)
-		return nil
+		_, writeErr := io.WriteString(stdout, projectUsage)
+		return writeErr
 	}
+	now := time.Now()
 	if err == nil {
 		var data projectData
-		data, err = fetchProjectDataFunc(o, time.Now())
+		data, err = fetchProjectDataFunc(o, now)
 		if err == nil {
-			return writeProject(stdout, buildProjectDocument(data, o), o, time.Now())
+			return writeProject(stdout, buildProjectDocument(data, o), o, now)
 		}
 	}
 	if o.json {
@@ -168,7 +170,7 @@ func writeProjectError(out io.Writer, err error) error {
 		Error         string `json:"error"`
 	}{1, err.Error()}
 	if writeErr := json.NewEncoder(out).Encode(payload); writeErr != nil {
-		return writeErr
+		return errors.Join(err, writeErr)
 	}
 	return err
 }
@@ -187,49 +189,52 @@ func chooseLabel(labels []string, preferred []string) string {
 	return ""
 }
 
-func projectIssueGroup(issue projectIssue, data projectData, o projectOptions) (string, string) {
+type projectGroupIdentity struct{ ID, Name string }
+
+func projectIssueGroup(issue projectIssue, data projectData, o projectOptions) (projectGroupIdentity, string) {
 	if data.Project == nil {
 		label := chooseLabel(issue.Labels, o.groupLabels)
 		if label == "" {
-			return "No label", ""
+			return projectGroupIdentity{"unassigned:label", "No label"}, ""
 		}
-		return label, label
+		return projectGroupIdentity{"label:" + label, label}, label
 	}
 	for _, m := range data.Memberships[issue.Number] {
 		if m.Project.ID == data.Project.ID {
 			for _, option := range data.Project.StatusOptions {
 				if m.Status.OptionID == option.ID {
-					return option.Name, ""
+					return projectGroupIdentity{"status:" + option.ID, option.Name}, ""
 				}
 			}
 		}
 	}
-	return "No status", ""
+	return projectGroupIdentity{"unassigned:status", "No status"}, ""
 }
 
 func buildProjectDocument(data projectData, o projectOptions) projectDocument {
 	d := projectDocument{SchemaVersion: 1, Repository: data.Repository, Project: data.Project, Grouping: "label", Groups: []projectGroup{}, RecentlyClosed: append([]projectIssue{}, data.Closed...), ClosedDays: o.closedDays, Hints: append([]string{}, data.Hints...)}
 	indexes := map[string]int{}
-	addGroup := func(name string) {
-		indexes[name] = len(d.Groups)
-		d.Groups = append(d.Groups, projectGroup{Name: name, Issues: []projectIssue{}})
+	addGroup := func(identity projectGroupIdentity) {
+		indexes[identity.ID] = len(d.Groups)
+		d.Groups = append(d.Groups, projectGroup{ID: identity.ID, Name: identity.Name, Issues: []projectIssue{}})
 	}
 	if data.Project != nil {
 		d.Grouping = "project"
 		for _, option := range data.Project.StatusOptions {
-			addGroup(option.Name)
+			addGroup(projectGroupIdentity{"status:" + option.ID, option.Name})
 		}
 	}
 	for _, issue := range data.Open {
-		name, groupLabel := projectIssueGroup(issue, data, o)
-		if _, ok := indexes[name]; !ok {
-			addGroup(name)
+		identity, groupLabel := projectIssueGroup(issue, data, o)
+		if _, ok := indexes[identity.ID]; !ok {
+			addGroup(identity)
 		}
 		issue.Labels = withoutProjectGroupLabel(issue.Labels, groupLabel)
-		index := indexes[name]
+		index := indexes[identity.ID]
 		d.Groups[index].Issues = append(d.Groups[index].Issues, issue)
 		d.Groups[index].Count++
 	}
+	disambiguateProjectGroups(d.Groups)
 	if data.Project == nil {
 		sort.SliceStable(d.Groups, func(i, j int) bool { return d.Groups[i].Name < d.Groups[j].Name })
 	}
@@ -316,4 +321,28 @@ func commandTerminalError(args []string, terminal terminalOptions, out io.Writer
 		return writeProjectError(out, err)
 	}
 	return statusTerminalError(args, terminal, out, err)
+}
+
+func disambiguateProjectGroups(groups []projectGroup) {
+	names := map[string]int{}
+	for _, group := range groups {
+		names[group.Name]++
+	}
+	for i, group := range groups {
+		if names[group.Name] < 2 {
+			continue
+		}
+		suffix := ""
+		switch group.ID {
+		case "unassigned:label":
+			suffix = " (unlabeled)"
+		case "unassigned:status":
+			suffix = " (unassigned)"
+		default:
+			continue
+		}
+		for names[groups[i].Name] > 0 {
+			groups[i].Name += suffix
+		}
+	}
 }

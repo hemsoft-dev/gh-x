@@ -168,8 +168,11 @@ to prefer named labels in that order, falling back to the first label when none
 matches. The grouping label is omitted from the row's other labels. Label groups
 sort by name; issues within each group sort oldest first. Age means time since
 creation, and Updated means time since the last update. The closed section sorts
-by closure time, newest first, and defaults to the last seven days. All issue
-pages are fetched; pull requests returned by the REST issues endpoint are excluded.
+by closure time, newest first, and defaults to the last seven days. Memberships
+are queried in batches of 30 issues, with additional pages fetched
+for each issue as needed. The operation uses the standard 30-second GitHub timeout
+(`GH_X_GITHUB_TIMEOUT` overrides it). All issue pages are fetched; pull requests returned by the
+REST issues endpoint are excluded.
 Unknown linked PRs or sub-issue counts display `?` with an explanatory hint.
 
 Example (synthetic issues):
@@ -208,7 +211,7 @@ This is a separate schema from [status JSON](docs/status-json.md).
   "repository": "example/loops",
   "project": null,
   "grouping": "label",
-  "groups": [{"name": "watching", "count": 1, "issues": [{
+  "groups": [{"id": "label:watching", "name": "watching", "count": 1, "issues": [{
     "number": 2, "title": "Approve release plan",
     "url": "https://github.com/example/loops/issues/2",
     "createdAt": "2026-10-19T12:00:00Z",
@@ -223,7 +226,10 @@ This is a separate schema from [status JSON](docs/status-json.md).
 
 `project` is null in label mode, otherwise an object with `id`, `owner`,
 `number`, `title`, `url`, and ordered `statusOptions` (`id`, `name`). `groups`
-contains `name`, `count`, and `issues`. Each issue has the fields shown above;
+contains `id`, `name`, `count`, and `issues`. Group IDs distinguish Status
+options and label names from unassigned groups, even when their displayed names
+match (`No label` or `No status`). Conflicting fallback names gain an explanatory
+suffix. Each issue has the fields shown above;
 `labels` excludes the grouping label in label mode. `recentlyClosed` uses the
 same issue shape and preserves all labels. `closedAt` is null for open issues;
 `subIssues` is null when unavailable. `pullRequests` is an empty array when

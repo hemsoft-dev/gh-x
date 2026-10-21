@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -79,6 +81,9 @@ func TestProjectPagination(t *testing.T) {
 				connection["nodes"] = []any{}
 			}
 			value, err := json.Marshal(raw)
+			if name == "memberships" {
+				return projectBatchFixture(t, q, string(value)), err
+			}
 			return string(value), err
 		})
 		got, err := fetchProjectMemberships(context.Background(), "example", "loops", "github.com", []projectIssue{{Number: 2}})
@@ -213,5 +218,47 @@ func TestProjectAcquisitionFailures(t *testing.T) {
 	}
 	if projectScopeError(errors.New("401 Bad credentials")) || projectScopeError(errors.New("offline")) {
 		t.Fatal("non-scope error hidden")
+	}
+}
+
+func TestProjectMembershipBatchBudget(t *testing.T) {
+	issues := make([]projectIssue, 65)
+	for i := range issues {
+		issues[i].Number = i + 1
+	}
+	batchCalls, tailCalls := 0, 0
+	projectExecutor(t, func(q string) (string, error) {
+		aliases := regexp.MustCompile(`issue(\d+): issue\(`).FindAllStringSubmatch(q, -1)
+		raw := projectBatchFixture(t, q, string(projectFixture(t, "memberships")))
+		var body map[string]any
+		if err := json.Unmarshal([]byte(raw), &body); err != nil {
+			t.Fatal(err)
+		}
+		repository := body["data"].(map[string]any)["repository"].(map[string]any)
+		if len(aliases) == 0 {
+			tailCalls++
+			if !strings.Contains(q, `issue(number:31)`) || !strings.Contains(q, `after:"issue31-next"`) {
+				t.Fatalf("incorrect issue continuation %s", q)
+			}
+		} else {
+			batchCalls++
+			if len(aliases) > relationshipBatchSize {
+				t.Fatalf("unbounded batch %d", len(aliases))
+			}
+			for _, alias := range aliases {
+				number, err := strconv.Atoi(alias[1])
+				if err != nil {
+					t.Fatal(err)
+				}
+				page := repository["issue"+alias[1]].(map[string]any)["projectItems"].(map[string]any)
+				page["pageInfo"] = map[string]any{"hasNextPage": number == 31, "endCursor": "issue31-next"}
+			}
+		}
+		value, err := json.Marshal(body)
+		return string(value), err
+	})
+	got, err := fetchProjectMemberships(context.Background(), "example", "loops", "github.com", issues)
+	if err != nil || len(got) != 65 || batchCalls != 3 || tailCalls != 1 || len(got[31]) != 2 || len(got[1]) != 1 || len(got[65]) != 1 {
+		t.Fatalf("batch budget issues=%d batches=%d tails=%d issue31=%d err=%v", len(got), batchCalls, tailCalls, len(got[31]), err)
 	}
 }

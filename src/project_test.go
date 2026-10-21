@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -39,7 +40,7 @@ func projectTestTransport(t *testing.T, mode string) *[]string {
 			if mode == "network" {
 				return bytes.Buffer{}, *bytes.NewBufferString("network offline"), errors.New("exit status 1")
 			}
-			raw = projectFixture(t, "memberships")
+			raw = []byte(projectBatchFixture(t, value, string(projectFixture(t, "memberships"))))
 		case strings.Contains(value, "projectV2"):
 			raw = projectFixture(t, "project")
 		case strings.Contains(value, "closedByPullRequestsReferences"):
@@ -275,8 +276,8 @@ func TestProjectNoStatusAndUnknownEnrichment(t *testing.T) {
 			m.Status.OptionID = tc.option
 			data := projectData{Project: &projectReference{ID: "p", StatusOptions: []projectStatusOption{{"todo", "Todo"}}}, Memberships: map[int][]projectMembership{1: {m}}}
 			group, label := projectIssueGroup(projectIssue{Number: 1}, data, projectOptions{})
-			if group != tc.want || label != "" {
-				t.Fatalf("group %s label%s", group, label)
+			if group.Name != tc.want || label != "" {
+				t.Fatalf("group %+v label%s", group, label)
 			}
 		})
 	}
@@ -284,5 +285,39 @@ func TestProjectNoStatusAndUnknownEnrichment(t *testing.T) {
 	renderProjectSection(&out, "Empty", []projectIssue{{Number: 1}}, time.Now())
 	if strings.Count(out.String(), "?") != 2 {
 		t.Fatalf("unknown data disguised as empty: %s", out.String())
+	}
+}
+
+func projectBatchFixture(t *testing.T, query, raw string) string {
+	t.Helper()
+	aliases := regexp.MustCompile(`issue(\d+): issue\(`).FindAllStringSubmatch(query, -1)
+	if len(aliases) == 0 {
+		return raw
+	}
+	var body map[string]any
+	if err := json.Unmarshal([]byte(raw), &body); err != nil {
+		t.Fatal(err)
+	}
+	repository := body["data"].(map[string]any)["repository"].(map[string]any)
+	node := repository["issue"]
+	delete(repository, "issue")
+	for _, alias := range aliases {
+		repository["issue"+alias[1]] = node
+	}
+	result, err := json.Marshal(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(result)
+}
+
+func TestProjectDiagnosticWriteFailure(t *testing.T) {
+	cause := errors.New("primary fetch failure")
+	err := writeProjectError(failProjectWriter{}, cause)
+	if !errors.Is(err, cause) || !errors.Is(err, io.ErrClosedPipe) {
+		t.Fatalf("lost primary or output failure: %v", err)
+	}
+	if err := runProject([]string{"--help"}, failProjectWriter{}, io.Discard); !errors.Is(err, io.ErrClosedPipe) {
+		t.Fatalf("help write error ignored: %v", err)
 	}
 }
