@@ -13,6 +13,11 @@ and this project uses semantic versioning.
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-10-21
+
+- feat: add issue-driven project status view (#234)
+- docs: record v0.22.0 release (#232)
+
 ## [0.22.0] - 2026-10-21
 
 - feat: add versioned JSON output to status (#231)
@@ -379,7 +384,8 @@ the published releases above.
 - Dynamic or unreadable workflow definitions now display `unknown` in the
   trigger column instead of failing the list command.
 
-[Unreleased]: https://github.com/hemsoft-dev/gh-x/compare/v0.22.0...HEAD
+[Unreleased]: https://github.com/hemsoft-dev/gh-x/compare/v0.23.0...HEAD
+[0.23.0]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.0
 [0.22.0]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.22.0
 [0.21.2]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.21.2
 [0.21.1]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.21.1
