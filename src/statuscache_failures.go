@@ -86,6 +86,10 @@ func statusRetryDelay(err error, now time.Time) time.Duration {
 	if err == nil {
 		return statusCacheTTL
 	}
+	var quota *quotaError
+	if errors.As(err, &quota) {
+		return max(time.Second, quota.Until.Sub(now))
+	}
 	delay := 5 * time.Second
 	message := strings.ToLower(err.Error())
 	if strings.Contains(message, "rate limit") || strings.Contains(message, "429") {

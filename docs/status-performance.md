@@ -125,3 +125,40 @@ empty both fixture-owned caches. Baseline partial-failure samples could reuse
 an older successful snapshot; current tests require the failed section's error
 to remain visible instead. These controlled timings are separate from real API
 latency. See [benchmark instructions](../benchmarks/README.md) to reproduce them.
+
+### API quota cooldowns
+
+Raw `gh api` acquisitions request response headers and strip them before JSON
+parsing. Primary exhaustion records `x-ratelimit-reset`; secondary limits honor
+`Retry-After`, with exponential fallback from one minute to a fifteen-minute cap.
+HTTP-200 GraphQL rate-limit error envelopes follow the same path, following
+[GitHub quota guidance](https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api#exceeding-the-rate-limit).
+A successful
+response consuming the final point still supplies its data.
+
+Cooldowns live in the user's cache directory under `gh-x/api-quota-v1`. Each
+filename hashes the host, API resource and authentication context. Files contain
+only a deadline and retry count, without credentials, response bodies or repository
+names. Persistent lock sidecars serialize updates so concurrent responses retain
+the longest deadline. A successful response only clears an expired record that
+matches its original observation. Later GraphQL acquisitions, including subsequent status sections and other
+repositories, stop locally until the deadline. REST core, REST search, code search
+and GraphQL requests use independent buckets. Workflow listings honor the core
+bucket. Browser-only issue and PR lists remain available during cooldown.
+Changing account or host selects a separate cooldown. The base authentication
+fingerprint is read once per CLI command; each invocation still mixes in its
+credential override. Unavailable identity or
+unwritable cache disables persistence rather than reusing another identity's state.
+
+`status --refresh` bypasses the status snapshot, but preserves API cooldowns.
+Suppressed sections report unavailable evidence and the reset deadline. Existing
+cached sections remain available through the usual cache path. Local Git inspection
+continues. No extra rate-limit query is issued.
+
+The transport fixtures cover a thirty-minute primary reset, secondary backoff,
+resource/account/host separation and resumption. `src/testdata/quota/gh-2.101.0-http.txt`
+was captured from installed GitHub CLI 2.101.0 using a synthetic loopback HTTP
+server on October 22, 2026 EDT. It contains no real credentials or GitHub data.
+Formatted and paginated CLI calls cannot expose headers through this adapter;
+they honor known resource cooldowns and use bounded fallback when their stderr
+reports a rate limit without reset metadata.
