@@ -1,0 +1,4 @@
+title = "gh-x credentials: pinned defaults, no project exceptions"
+
+[extend]
+useDefault = true

@@ -1,6 +1,6 @@
 ---
 name: perfection
-description: "V1.2 - Commands: audit, coverage, crap, mutate, simplify, harden. Comprehensive Go code quality enforcement for gh-x: test coverage analysis, CRAP score tracking, mutation testing, simplification patterns, and static analysis. Use when improving code quality, writing tests, or before merging."
+description: "V1.3 - Commands: audit, coverage, crap, mutate, simplify, harden. Comprehensive Go code quality enforcement for gh-x: coverage, CRAP, mutation, static analysis and pinned source/history credential scanning. Use when improving code quality, writing tests, or before merging."
 compatibility: Requires go 1.23+, git
 hooks:
   PostToolUse:
@@ -88,6 +88,12 @@ Check if tools are installed: `Get-Command staticcheck, gocritic, errcheck, gocy
 Markdown linting runs through the version in `.github/quality-tools.env`; the
 current command is `npx --yes markdownlint-cli2@0.20.0 '**/*.md' '#node_modules' '#.agents' '#.github/agents'`.
 
+Install pinned Gitleaks with `bash .github/scripts/install-quality-tools.sh credentials`
+or the cross-platform Go installer documented in
+[credential scanning](../../../docs/credential-scanning.md). Its upstream archive
+checksum is committed alongside the version pin. Credential fixtures and scans
+require that exact binary; the local audit does not install missing tools.
+
 ## Commands
 
 ### `audit` — Full Quality Report
@@ -127,6 +133,10 @@ PowerShell executor regression tests. The local runner executes:
     `docs/dashboard-quality.md` for the per-function V8 branch basis and explicit
     zero-coverage entry-module gaps. Failure reports remain in the audit's
     artifact directory.
+13. Exercise real pinned-scanner fixtures, then scan nonignored working source
+    and all reachable refs plus HEAD. Require complete origin heads/tags and
+    nonshallow history. Publish only scope and counts; a credential finding,
+    unavailable scanner or incomplete scan fails qualification.
 
 Prerequisites: PowerShell 7, the Go version in `go.mod`, a supported race-test C
 compiler, Node from `.node-version` with npm/npx, Git, authenticated read-only GitHub CLI access, Bash

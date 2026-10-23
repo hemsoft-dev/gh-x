@@ -887,6 +887,11 @@ canonical release-target builds, then require green CI and a clean current-head
 review. Check the CI and release setup logs for the selected compiler version.
 Historical benchmark records keep the compiler version used for that measurement.
 
+### Credential scanning
+
+The [credential scanning guide](docs/credential-scanning.md) documents the pinned
+source/history checks, hosted push protection, safe reports and maintainer triage.
+
 ### Performance measurements
 
 Run `node benchmarks/run.mjs` for offline synthetic rendering, monitor and Codex

@@ -439,6 +439,24 @@ jobs:
           fi
           REVIEW_SCOPE="$review_scope" go run ./.github/scripts/changelog-merge review
 
+  credential-scan:
+    name: Credential Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+      - name: Install credential scanner
+        run: bash .github/scripts/install-quality-tools.sh credentials
+      - name: Test credential scanner fixtures
+        run: go test -race -count=1 -timeout=90s ./.github/scripts/credential-scan -run '^TestGitleaks' -gitleaks-integration
+      - name: Scan source and reachable history
+        run: go run ./.github/scripts/credential-scan -report "$RUNNER_TEMP/credential-scope.json"
+
   performance:
     name: Performance Budgets
     runs-on: ubuntu-latest
@@ -477,7 +495,7 @@ jobs:
     name: Quality Gate
     runs-on: ubuntu-latest
     if: always()
-    needs: [build-and-test, windows-installer, lint, quality, mutation, security-analysis, dependency-review, codex-review, performance]
+    needs: [build-and-test, windows-installer, lint, quality, mutation, security-analysis, dependency-review, codex-review, performance, credential-scan]
     steps:
       - name: Evaluate all gates
         shell: bash
@@ -496,6 +514,7 @@ jobs:
           echo "Dependencies: ${{ needs.dependency-review.result }}"
           echo "Codex review: ${{ needs.codex-review.result }}"
           echo "Performance:  ${{ needs.performance.result }}"
+          echo "Credentials:  ${{ needs.credential-scan.result }}"
 
           if [[ "${{ needs.build-and-test.result }}" != "success" || \
                 "${{ needs.windows-installer.result }}" != "success" || \
@@ -504,6 +523,7 @@ jobs:
                 "${{ needs.mutation.result }}" != "success" || \
                 "${{ needs.security-analysis.result }}" != "success" || \
                 "${{ needs.dependency-review.result }}" != "success" || \
+                "${{ needs.credential-scan.result }}" != "success" || \
                 "${{ needs.performance.result }}" != "success" ]]; then
             echo "::error::One or more quality gates failed"
             exit 1
