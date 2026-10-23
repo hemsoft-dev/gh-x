@@ -4,8 +4,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
+	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -52,6 +56,7 @@ func TestQuotaSecondaryBackoff(t *testing.T) {
 }
 
 func TestQuotaTransportSuppressesRequestsAndIsolatesResources(t *testing.T) {
+	resetQuotaAuth(t)
 	directory := t.TempDir()
 	savedDirectory, savedNow, savedRaw := quotaDirectoryFunc, quotaNowFunc, quotaRawFunc
 	t.Cleanup(func() { quotaDirectoryFunc, quotaNowFunc, quotaRawFunc = savedDirectory, savedNow, savedRaw })
@@ -64,7 +69,7 @@ func TestQuotaTransportSuppressesRequestsAndIsolatesResources(t *testing.T) {
 	quotaRawFunc = func(inv ghInvocation) (bytes.Buffer, bytes.Buffer, error) {
 		calls++
 		if calls == 1 {
-			if !containsArg(inv.Args, "--include") {
+			if !slices.Contains(inv.Args, "--include") {
 				t.Fatal("headers not requested")
 			}
 			return *bytes.NewBufferString("HTTP/2.0 200 OK\r\nX-Ratelimit-Remaining: 0\r\nX-Ratelimit-Reset: 1800001800\r\n\r\n" + `{"errors":[{"type":"RATE_LIMITED","message":"API rate limit exceeded"}]}`), bytes.Buffer{}, nil
@@ -121,8 +126,10 @@ func TestQuotaTransportSuppressesRequestsAndIsolatesResources(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != 0 {
-		t.Fatal("successful resumption retained cooldown")
+	for _, entry := range entries {
+		if strings.HasSuffix(entry.Name(), ".json") {
+			t.Fatal("successful resumption retained cooldown")
+		}
 	}
 }
 
@@ -203,6 +210,7 @@ func TestQuotaCombinedDeadlines(t *testing.T) {
 }
 
 func TestQuotaPartialSuccessAndCachedDeadline(t *testing.T) {
+	resetQuotaAuth(t)
 	savedRaw, savedDirectory, savedNow := quotaRawFunc, quotaDirectoryFunc, quotaNowFunc
 	t.Cleanup(func() { quotaRawFunc, quotaDirectoryFunc, quotaNowFunc = savedRaw, savedDirectory, savedNow })
 	directory := t.TempDir()
@@ -233,5 +241,189 @@ func TestQuotaPartialSuccessAndCachedDeadline(t *testing.T) {
 	restoreStatusFailures(&restored, cacheStatusFailures(dashboard))
 	if delay := statusRetryDelay(restored.IssuesErr, now); delay != 30*time.Minute {
 		t.Fatalf("restored deadline=%v", delay)
+	}
+}
+
+func TestQuotaReviewRegressions(t *testing.T) {
+	for _, test := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"api", "search/users", "--jq", ".items[].login"}, "search"},
+		{[]string{"api", "--hostname", "example.test", "/search/code?q=x"}, "code_search"},
+		{[]string{"workflow", "list"}, "core"},
+		{[]string{"pr", "list", "--web"}, ""},
+		{[]string{"pr", "list", "-w"}, ""},
+		{[]string{"pr", "list", "--search", "--web"}, "graphql"},
+	} {
+		if got := quotaResource(test.args); got != test.want {
+			t.Fatalf("%v: resource=%q want=%q", test.args, got, test.want)
+		}
+	}
+}
+
+func resetQuotaAuth(t *testing.T) {
+	t.Helper()
+	saved := quotaAuthContextFunc
+	quotaAuthContextFunc = sync.OnceValues(statusAuthContext)
+	t.Cleanup(func() { quotaAuthContextFunc = saved })
+}
+
+func TestQuotaConcurrentPublication(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "quota.json")
+	now := quotaNowFunc()
+	observed := readQuota(path)
+	longer := quotaRecord{Until: now.Add(30 * time.Minute), Attempts: 2}
+	shorter := quotaRecord{Until: now.Add(time.Minute), Attempts: 1}
+	saveQuota(path, longer)
+	clearQuota(path, observed)
+	if got := readQuota(path); !got.Until.Equal(longer.Until) {
+		t.Fatal("concurrent success erased new deadline")
+	}
+	saveQuota(path, shorter)
+	if got := readQuota(path); !got.Until.Equal(longer.Until) || got.Attempts != 2 {
+		t.Fatal("concurrent publisher shortened cooldown")
+	}
+	var group sync.WaitGroup
+	for range 8 {
+		group.Go(func() { saveQuota(path, shorter); clearQuota(path, observed) })
+	}
+	group.Wait()
+	if got := readQuota(path); !got.Until.Equal(longer.Until) {
+		t.Fatal("parallel publication lost reset")
+	}
+	expired := quotaRecord{Until: now.Add(-time.Minute), Attempts: 1}
+	other := filepath.Join(t.TempDir(), "quota.json")
+	saveQuota(other, expired)
+	clearQuota(other, readQuota(other))
+	if _, err := os.Stat(other); !os.IsNotExist(err) {
+		t.Fatal("expired observation not cleared")
+	}
+}
+
+func TestQuotaAuthFingerprintIsCached(t *testing.T) {
+	resetQuotaAuth(t)
+	directory := t.TempDir()
+	t.Setenv("GH_CONFIG_DIR", directory)
+	for _, name := range []string{"GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"} {
+		t.Setenv(name, "")
+	}
+	if err := os.WriteFile(filepath.Join(directory, "hosts.yml"), []byte("github.com:\n  user: fixture\n  users:\n    fixture: {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	saved := statusKeyringGetFunc
+	t.Cleanup(func() { statusKeyringGetFunc = saved })
+	reads := 0
+	statusKeyringGetFunc = func(service, user string) (string, error) { reads++; return "synthetic-keyring", nil }
+	inv := ghInvocation{Context: context.Background(), Args: []string{"api", "--hostname", "github.com", "graphql"}}
+	first := quotaPath(inv, "graphql")
+	initialReads := reads
+	if first == "" || initialReads == 0 {
+		t.Fatal("secure storage not fingerprinted")
+	}
+	for range 5 {
+		if got := quotaPath(inv, "graphql"); got != first {
+			t.Fatal("fingerprint changed")
+		}
+	}
+	inv.ExtraEnv = []string{"GH_TOKEN=synthetic-fallback"}
+	if got := quotaPath(inv, "graphql"); got == first || got == "" {
+		t.Fatal("credential override lost")
+	}
+	if reads != initialReads {
+		t.Fatalf("keyring probed %d times, first acquisition=%d", reads, initialReads)
+	}
+}
+
+func TestQuotaPreservesUnrelatedLastPointError(t *testing.T) {
+	resetQuotaAuth(t)
+	savedRaw, savedDirectory := quotaRawFunc, quotaDirectoryFunc
+	t.Cleanup(func() { quotaRawFunc, quotaDirectoryFunc = savedRaw, savedDirectory })
+	directory := t.TempDir()
+	quotaDirectoryFunc = func() (string, error) { return directory, nil }
+	t.Setenv("GH_CONFIG_DIR", t.TempDir())
+	t.Setenv("GH_TOKEN", "synthetic-schema-error")
+	original := errors.New("exit status 1")
+	message := "Cannot query field parent on type Issue"
+	reset := quotaNowFunc().Add(30 * time.Minute).Unix()
+	quotaRawFunc = func(ghInvocation) (bytes.Buffer, bytes.Buffer, error) {
+		return *bytes.NewBufferString(fmt.Sprintf("HTTP/2.0 200 OK\r\nX-Ratelimit-Remaining: 0\r\nX-Ratelimit-Reset: %d\r\n\r\n", reset) + `{"errors":[{"message":"Cannot query field parent on type Issue"}]}`), *bytes.NewBufferString(message), original
+	}
+	inv := ghInvocation{Context: context.Background(), Args: []string{"api", "--hostname", "github.com", "graphql"}}
+	_, stderr, err := runGHCmd(inv)
+	if !errors.Is(err, original) || stderr.String() != message {
+		t.Fatalf("schema error replaced: %q, %v", stderr.String(), err)
+	}
+	var quota *quotaError
+	if _, _, err := runGHCmd(inv); !errors.As(err, &quota) {
+		t.Fatal("last point failure did not set future cooldown")
+	}
+}
+
+func TestQuotaCoveredRoutes(t *testing.T) {
+	resetQuotaAuth(t)
+	savedRaw, savedDirectory := quotaRawFunc, quotaDirectoryFunc
+	t.Cleanup(func() { quotaRawFunc, quotaDirectoryFunc = savedRaw, savedDirectory })
+	directory := t.TempDir()
+	quotaDirectoryFunc = func() (string, error) { return directory, nil }
+	t.Setenv("GH_CONFIG_DIR", t.TempDir())
+	t.Setenv("GH_TOKEN", "synthetic-route-fixture")
+	calls := 0
+	quotaRawFunc = func(ghInvocation) (bytes.Buffer, bytes.Buffer, error) {
+		calls++
+		return bytes.Buffer{}, bytes.Buffer{}, nil
+	}
+	invocation := func(args ...string) ghInvocation { return ghInvocation{Context: context.Background(), Args: args} }
+	api := invocation("api", "--hostname", "github.com", "search/users", "--jq", ".items[].login")
+	future := quotaRecord{Until: quotaNowFunc().Add(time.Hour)}
+	saveQuota(quotaPath(api, "search"), future)
+	var quota *quotaError
+	if _, _, err := runGHCmd(api); !errors.As(err, &quota) {
+		t.Fatal("search quota not enforced")
+	}
+	core := invocation("api", "--hostname", "github.com", "repos/o/r/rules/branches/main")
+	if _, _, err := runGHCmd(core); err != nil {
+		t.Fatal("search blocked core", err)
+	}
+	saveQuota(quotaPath(core, "core"), future)
+	workflow := invocation("workflow", "list", "--repo", "github.com/o/r")
+	if _, _, err := runGHCmd(workflow); !errors.As(err, &quota) {
+		t.Fatal("workflow bypassed core")
+	}
+	web := invocation("pr", "list", "--repo", "github.com/o/r", "--web")
+	saveQuota(quotaPath(web, "graphql"), future)
+	if _, _, err := runGHCmd(web); err != nil {
+		t.Fatal("browser blocked", err)
+	}
+	if calls != 2 {
+		t.Fatalf("outbound requests=%d", calls)
+	}
+}
+
+func TestQuotaAuthoritativeResource(t *testing.T) {
+	resetQuotaAuth(t)
+	t.Setenv("GH_CONFIG_DIR", t.TempDir())
+	t.Setenv("GH_TOKEN", "synthetic-resource-header")
+	inv := ghInvocation{Context: context.Background(), Args: []string{"api", "--hostname", "github.com", "user"}}
+	original := quotaRecord{Attempts: 2}
+	path, record := quotaResponseScope(inv, quotaHeaders{"X-Ratelimit-Resource": {"search"}}, "original", original)
+	if path == "" || path == "original" || record.Attempts != 0 {
+		t.Fatal("authoritative resource ignored")
+	}
+	for _, resource := range []string{"", "core", "invalid"} {
+		path, record := quotaResponseScope(inv, quotaHeaders{"X-Ratelimit-Resource": {resource}}, "original", original)
+		if path != "original" || record != original {
+			t.Fatal("matching or unknown resource changed scope")
+		}
+	}
+	for _, test := range []struct{ endpoint, want string }{
+		{"http://example.test/api/v3/search/users?q=x", "search"},
+		{"http://example.test/search/code?q=x", "code_search"},
+		{"http://example.test/graphql", "graphql"},
+		{"%invalid", "core"},
+	} {
+		if got := quotaAPIResource(test.endpoint); got != test.want {
+			t.Fatalf("%s: %s", test.endpoint, got)
+		}
 	}
 }

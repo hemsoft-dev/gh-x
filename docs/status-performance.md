@@ -139,9 +139,15 @@ response consuming the final point still supplies its data.
 Cooldowns live in the user's cache directory under `gh-x/api-quota-v1`. Each
 filename hashes the host, API resource and authentication context. Files contain
 only a deadline and retry count, without credentials, response bodies or repository
-names. Later GraphQL acquisitions, including subsequent status sections and other
-repositories, stop locally until the deadline. REST requests remain independent.
-Changing account or host selects a separate cooldown. Unavailable identity or
+names. Persistent lock sidecars serialize updates so concurrent responses retain
+the longest deadline. A successful response only clears an expired record that
+matches its original observation. Later GraphQL acquisitions, including subsequent status sections and other
+repositories, stop locally until the deadline. REST core, REST search, code search
+and GraphQL requests use independent buckets. Workflow listings honor the core
+bucket. Browser-only issue and PR lists remain available during cooldown.
+Changing account or host selects a separate cooldown. The base authentication
+fingerprint is read once per CLI command; each invocation still mixes in its
+credential override. Unavailable identity or
 unwritable cache disables persistence rather than reusing another identity's state.
 
 `status --refresh` bypasses the status snapshot, but preserves API cooldowns.

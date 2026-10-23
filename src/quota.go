@@ -3,14 +3,20 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/gofrs/flock"
 )
 
 type quotaError struct{ Until time.Time }
@@ -26,6 +32,9 @@ type quotaRecord struct {
 
 // Only deadlines and attempt counts are persisted. The path hashes host,
 // resource and effective credential context, never repository-specific data.
+// A CLI process owns one command. Cache expensive credential-store reads once;
+// quotaPath still includes per-invocation credentials and environment overrides.
+var quotaAuthContextFunc = sync.OnceValues(statusAuthContext)
 var quotaRawFunc = runGHCmdRaw
 var quotaNowFunc = time.Now
 var quotaDirectoryFunc = func() (string, error) {
@@ -37,7 +46,7 @@ func quotaPath(inv ghInvocation, resource string) string {
 	if resource == "" {
 		return ""
 	}
-	auth, err := statusAuthContext()
+	auth, err := quotaAuthContextFunc()
 	if err != nil {
 		return ""
 	}
@@ -57,28 +66,71 @@ func quotaResource(args []string) string {
 	if len(args) < 2 {
 		return ""
 	}
+	if quotaBrowserList(args) {
+		return ""
+	}
 	switch args[0] {
 	case "pr", "issue", "repo":
 		return "graphql"
-	case "run":
+	case "run", "workflow":
 		return "core"
 	case "api":
-		if containsArg(args, "graphql") {
-			return "graphql"
-		}
-		return "core"
+		return quotaAPIResource(quotaEndpoint(args))
 	default:
 		return ""
 	}
 }
 
-func containsArg(args []string, value string) bool {
-	for _, arg := range args {
-		if arg == value {
+// Skip flag values as well as flags: a search string equal to --web must
+// never turn an API acquisition into a browser-only operation.
+func quotaBrowserList(args []string) bool {
+	if args[1] != "list" || (args[0] != "pr" && args[0] != "issue") {
+		return false
+	}
+	for i := 2; i < len(args); i++ {
+		if args[i] == "--web" || args[i] == "-w" || args[i] == "--web=true" {
 			return true
+		}
+		if quotaValueFlag(args[i]) {
+			i++
 		}
 	}
 	return false
+}
+
+func quotaValueFlag(arg string) bool {
+	return slices.Contains([]string{"--hostname", "--repo", "-R", "--search", "-S", "--author", "-A", "--assignee", "-a", "--state", "-s", "--limit", "-L", "--json", "--jq", "-q", "--template", "-t", "--base", "-B", "--head", "-H", "--label", "-l", "--app", "--milestone", "-m", "--field", "-F", "--raw-field", "-f", "--header", "--input", "--method", "-X", "--cache", "--preview", "-p"}, arg)
+}
+
+func quotaEndpoint(args []string) string {
+	for i := 1; i < len(args); i++ {
+		if !strings.HasPrefix(args[i], "-") {
+			return args[i]
+		}
+		if quotaValueFlag(args[i]) {
+			i++
+		}
+	}
+	return ""
+}
+
+func quotaAPIResource(endpoint string) string {
+	parsed, err := url.Parse(endpoint)
+	if err != nil {
+		return "core"
+	}
+	path := strings.TrimPrefix(parsed.Path, "/")
+	path = strings.TrimPrefix(path, "api/v3/")
+	switch {
+	case path == "graphql":
+		return "graphql"
+	case path == "search/code":
+		return "code_search"
+	case strings.HasPrefix(path, "search/"):
+		return "search"
+	default:
+		return "core"
+	}
 }
 
 func quotaCapture(args []string) bool {
@@ -102,18 +154,47 @@ func readQuota(path string) quotaRecord {
 	return record
 }
 
+// All publishers and clearers lock the same persistent sidecar. Never remove
+// the lock file: unlinking it would allow two processes to lock different inodes.
+func withQuotaLock(path string, update func()) {
+	if path == "" || os.MkdirAll(filepath.Dir(path), 0o700) != nil {
+		return
+	}
+	lock := flock.New(path+".lock", flock.SetPermissions(0o600))
+	defer func() { _ = lock.Close() }()
+	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	defer cancel()
+	acquired, err := lock.TryLockContext(ctx, 10*time.Millisecond)
+	if err == nil && acquired {
+		update()
+	}
+}
+
 func saveQuota(path string, record quotaRecord) {
-	if path == "" {
-		return
-	}
-	if os.MkdirAll(filepath.Dir(path), 0o700) != nil {
-		return
-	}
+	withQuotaLock(path, func() {
+		current := readQuota(path)
+		if current.Until.After(record.Until) {
+			record.Until = current.Until
+		}
+		record.Attempts = max(record.Attempts, current.Attempts)
+		publishQuota(path, record)
+	})
+}
+
+func clearQuota(path string, observed quotaRecord) {
+	withQuotaLock(path, func() {
+		current := readQuota(path)
+		if current.Until.Equal(observed.Until) && current.Attempts == observed.Attempts && !quotaNowFunc().Before(current.Until) {
+			_ = os.Remove(path)
+		}
+	})
+}
+
+func publishQuota(path string, record quotaRecord) {
 	raw, err := json.Marshal(record)
 	if err != nil {
 		return
 	}
-	// Atomic publication prevents another process from reading partial JSON.
 	temp, err := os.CreateTemp(filepath.Dir(path), ".quota-*")
 	if err != nil {
 		return
@@ -163,7 +244,7 @@ func splitQuotaResponse(raw []byte) ([]byte, quotaHeaders) {
 		}
 		key = strings.ToLower(key)
 		switch key {
-		case "x-ratelimit-remaining", "x-ratelimit-reset", "retry-after":
+		case "x-ratelimit-remaining", "x-ratelimit-reset", "x-ratelimit-resource", "retry-after":
 			headers[key] = append(headers[key], strings.TrimSpace(value))
 		}
 	}
@@ -243,17 +324,27 @@ func runGHQuota(inv ghInvocation) (bytes.Buffer, bytes.Buffer, error) {
 		body, parsed := splitQuotaResponse(stdout.Bytes())
 		stdout, headers = *bytes.NewBuffer(body), parsed
 	}
+	path, record = quotaResponseScope(inv, headers, path, record)
 	until, limited := quotaDeadline(headers, stdout.Bytes(), stderr.String(), quotaNowFunc(), record.Attempts)
 	if limited {
 		saveQuota(path, quotaRecord{Until: until, Attempts: min(record.Attempts+1, 4)})
 		// A successful last request may consume the final point. Keep its data;
-		// only an actual API failure becomes an error for this request.
-		if err != nil || quotaLimited(stdout.Bytes(), stderr.String()) {
+		// only explicit rate-limit failures replace the original error.
+		if quotaLimited(stdout.Bytes(), stderr.String()) {
 			err = &quotaError{Until: until}
 			stderr = *bytes.NewBufferString(err.Error())
 		}
 	} else if err == nil && path != "" {
-		_ = os.Remove(path)
+		clearQuota(path, record)
 	}
 	return stdout, stderr, err
+}
+
+func quotaResponseScope(inv ghInvocation, headers quotaHeaders, path string, record quotaRecord) (string, quotaRecord) {
+	resource := headers.Get("X-Ratelimit-Resource")
+	if resource == "" || resource == quotaResource(inv.Args) || !slices.Contains([]string{"core", "graphql", "search", "code_search"}, resource) {
+		return path, record
+	}
+	path = quotaPath(inv, resource)
+	return path, readQuota(path)
 }
