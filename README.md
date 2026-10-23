@@ -852,7 +852,7 @@ icon selection on Automatic to use it.
 
 ## Local development
 
-Requires Go 1.26.7 or newer. CI reads the exact patched version from
+Requires Go 1.26.10 or newer. CI reads the exact patched version from
 `go.mod`; local builds with the default `GOTOOLCHAIN=auto` setting download it
 when the installed Go toolchain is older.
 
@@ -872,6 +872,20 @@ A convenience script is provided for Windows:
 ```powershell
 .\build.ps1   # runs vet → test → build
 ```
+
+### Toolchain patch maintenance
+
+Repository maintainers check the [official Go release history](https://go.dev/doc/devel/release)
+each Monday and before a release for patches to the supported Go line. Keep
+`go.mod` as the single version pin used by CI and release builds. Update the pin
+and the local development requirement together, noting the security fixes and
+any compatibility decision in the pull request.
+
+Qualify each patch with the [local audit](.agents/skills/perfection/SKILL.md)
+from a disposable checkout. Review the race tests, vulnerability report and all
+canonical release-target builds, then require green CI and a clean current-head
+review. Check the CI and release setup logs for the selected compiler version.
+Historical benchmark records keep the compiler version used for that measurement.
 
 ### Performance measurements
 
