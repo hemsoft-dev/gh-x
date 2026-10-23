@@ -13,6 +13,11 @@ and this project uses semantic versioning.
 
 ## [Unreleased]
 
+## [0.23.4] - 2026-10-23
+
+- ci: scan source and reachable history for credentials (#246)
+- docs: record v0.23.3 release (#245)
+
 ## [0.23.3] - 2026-10-23
 
 - chore: update Go 1.26 to security patch 1.26.10 (#243)
@@ -399,7 +404,8 @@ the published releases above.
 - Dynamic or unreadable workflow definitions now display `unknown` in the
   trigger column instead of failing the list command.
 
-[Unreleased]: https://github.com/hemsoft-dev/gh-x/compare/v0.23.3...HEAD
+[Unreleased]: https://github.com/hemsoft-dev/gh-x/compare/v0.23.4...HEAD
+[0.23.4]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.4
 [0.23.3]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.3
 [0.23.2]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.2
 [0.23.1]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.1
