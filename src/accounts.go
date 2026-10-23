@@ -47,6 +47,13 @@ var accountWarningWriter io.Writer = os.Stderr
 // environment entries. GH_PATH takes precedence, matching gh's own resolution.
 // Its context always owns the child process and cancels it when the caller ends.
 func runGHCmd(inv ghInvocation) (bytes.Buffer, bytes.Buffer, error) {
+	if inv.Context == nil {
+		inv.Context = context.Background()
+	}
+	return runGHQuota(inv)
+}
+
+func runGHCmdRaw(inv ghInvocation) (bytes.Buffer, bytes.Buffer, error) {
 	ctx := inv.Context
 	if ctx == nil {
 		ctx = context.Background()

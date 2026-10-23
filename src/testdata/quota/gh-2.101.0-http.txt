@@ -1,0 +1,9 @@
+HTTP/1.0 200 OK
+Content-Type: application/json
+Date: Fri, 23 Oct 2026 02:35:34 GMT
+Server: BaseHTTP/0.6 Python/3.14.4
+X-Ratelimit-Remaining: 0
+X-Ratelimit-Reset: 1800001800
+X-Ratelimit-Resource: graphql
+
+{"errors":[{"type":"RATE_LIMITED","message":"API rate limit exceeded"}]}

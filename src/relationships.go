@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -161,6 +162,10 @@ func fetchGraphQLWithExecutor(host, query string, executor ghExecutor) ([]byte, 
 	// beside partial errors, so hand back the payload when one exists and
 	// let callers fail closed for exactly the aliases it lacks.
 	wrappedErr := ghGraphQLError(err, stderr.String())
+	var quota *quotaError
+	if errors.As(err, &quota) {
+		wrappedErr = quota
+	}
 	if hasGraphQLDataEnvelope(stdout.Bytes()) {
 		return stdout.Bytes(), wrappedErr
 	}
