@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
-	"net/textproto"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -128,26 +126,55 @@ func saveQuota(path string, record quotaRecord) {
 	}
 }
 
-func splitQuotaResponse(raw []byte) ([]byte, http.Header) {
+type quotaHeaders map[string][]string
+
+func (h quotaHeaders) Get(name string) string {
+	for key, values := range h {
+		if strings.EqualFold(key, name) && len(values) != 0 {
+			return values[0]
+		}
+	}
+	return ""
+}
+
+// Parse gh's --include output, not an HTTP socket. Only quota metadata is
+// retained; the JSON payload is returned byte-for-byte, including large bodies.
+func splitQuotaResponse(raw []byte) ([]byte, quotaHeaders) {
 	if !bytes.HasPrefix(raw, []byte("HTTP/")) {
-		return raw, http.Header{}
+		return raw, quotaHeaders{}
 	}
 	reader := bufio.NewReader(bytes.NewReader(raw))
 	if _, err := reader.ReadString('\n'); err != nil {
-		return raw, http.Header{}
+		return raw, quotaHeaders{}
 	}
-	headers, err := textproto.NewReader(reader).ReadMIMEHeader()
-	if err != nil {
-		return raw, http.Header{}
+	headers := quotaHeaders{}
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return raw, quotaHeaders{}
+		}
+		line = strings.TrimRight(line, "\r\n")
+		if line == "" {
+			break
+		}
+		key, value, found := strings.Cut(line, ":")
+		if !found {
+			return raw, quotaHeaders{}
+		}
+		key = strings.ToLower(key)
+		switch key {
+		case "x-ratelimit-remaining", "x-ratelimit-reset", "retry-after":
+			headers[key] = append(headers[key], strings.TrimSpace(value))
+		}
 	}
 	body, err := io.ReadAll(reader)
 	if err != nil {
-		return raw, http.Header{}
+		return raw, quotaHeaders{}
 	}
-	return body, http.Header(headers)
+	return body, headers
 }
 
-func quotaDeadline(headers http.Header, body []byte, message string, now time.Time, attempts int) (time.Time, bool) {
+func quotaDeadline(headers quotaHeaders, body []byte, message string, now time.Time, attempts int) (time.Time, bool) {
 	limited := quotaLimited(body, message) || headers.Get("Retry-After") != ""
 	until := time.Time{}
 	if headers.Get("X-Ratelimit-Remaining") == "0" {
@@ -178,7 +205,7 @@ func quotaRetryAfter(value string, now time.Time, fallback time.Duration) time.D
 	if err == nil && seconds >= 0 {
 		return max(time.Second, time.Duration(seconds)*time.Second)
 	}
-	if deadline, err := http.ParseTime(value); err == nil {
+	if deadline, err := time.Parse(time.RFC1123, value); err == nil {
 		return max(time.Second, deadline.Sub(now))
 	}
 	return fallback
@@ -211,7 +238,7 @@ func runGHQuota(inv ghInvocation) (bytes.Buffer, bytes.Buffer, error) {
 		inv.Args = append(append([]string(nil), inv.Args...), "--include")
 	}
 	stdout, stderr, err := quotaRawFunc(inv)
-	headers := http.Header{}
+	headers := quotaHeaders{}
 	if capture {
 		body, parsed := splitQuotaResponse(stdout.Bytes())
 		stdout, headers = *bytes.NewBuffer(body), parsed

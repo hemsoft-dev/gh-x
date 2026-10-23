@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"net/http"
 	"os"
 	"strings"
 	"testing"
@@ -30,21 +29,21 @@ func TestGraphQLQuotaHTTPEnvelope(t *testing.T) {
 func TestQuotaSecondaryBackoff(t *testing.T) {
 	now := time.Unix(1800000000, 0)
 	for _, test := range []struct {
-		headers http.Header
+		headers quotaHeaders
 		attempt int
 		want    time.Duration
 	}{
-		{http.Header{"Retry-After": {"120"}}, 0, 2 * time.Minute},
-		{http.Header{}, 0, time.Minute},
-		{http.Header{}, 1, 2 * time.Minute},
-		{http.Header{}, 20, 15 * time.Minute},
+		{quotaHeaders{"Retry-After": {"120"}}, 0, 2 * time.Minute},
+		{quotaHeaders{}, 0, time.Minute},
+		{quotaHeaders{}, 1, 2 * time.Minute},
+		{quotaHeaders{}, 20, 15 * time.Minute},
 	} {
 		until, limited := quotaDeadline(test.headers, nil, "secondary rate limit", now, test.attempt)
 		if !limited || until.Sub(now) != test.want {
 			t.Fatalf("%+v: %v %v", test, until, limited)
 		}
 	}
-	if _, limited := quotaDeadline(http.Header{}, []byte(`{"errors":[{"message":"unknown field"}]}`), "", now, 0); limited {
+	if _, limited := quotaDeadline(quotaHeaders{}, []byte(`{"errors":[{"message":"unknown field"}]}`), "", now, 0); limited {
 		t.Fatal("schema error classified as rate limit")
 	}
 	if !errors.As(&quotaError{Until: now}, new(*quotaError)) {
@@ -161,8 +160,8 @@ func TestQuotaParsingEdges(t *testing.T) {
 		want  time.Duration
 	}{
 		{"0", time.Second}, {"invalid", time.Minute}, {"-1", time.Minute},
-		{now.Add(3 * time.Minute).UTC().Format(http.TimeFormat), 3 * time.Minute},
-		{now.Add(-time.Minute).UTC().Format(http.TimeFormat), time.Second},
+		{now.Add(3 * time.Minute).UTC().Format("Mon, 02 Jan 2006 15:04:05 GMT"), 3 * time.Minute},
+		{now.Add(-time.Minute).UTC().Format("Mon, 02 Jan 2006 15:04:05 GMT"), time.Second},
 	} {
 		if got := quotaRetryAfter(test.value, now, time.Minute); got != test.want {
 			t.Fatalf("retry %q = %v", test.value, got)
@@ -189,7 +188,7 @@ func TestQuotaParsingEdges(t *testing.T) {
 			t.Fatalf("capture %v = %v", test.args, got)
 		}
 	}
-	until, limited := quotaDeadline(http.Header{"X-Ratelimit-Remaining": {"0"}, "X-Ratelimit-Reset": {"bad"}}, nil, "", now, 0)
+	until, limited := quotaDeadline(quotaHeaders{"X-Ratelimit-Remaining": {"0"}, "X-Ratelimit-Reset": {"bad"}}, nil, "", now, 0)
 	if !limited || until.Sub(now) != time.Minute {
 		t.Fatal("invalid reset did not back off")
 	}
@@ -197,7 +196,7 @@ func TestQuotaParsingEdges(t *testing.T) {
 
 func TestQuotaCombinedDeadlines(t *testing.T) {
 	now := time.Unix(1800000000, 0)
-	until, limited := quotaDeadline(http.Header{"X-Ratelimit-Remaining": {"0"}, "X-Ratelimit-Reset": {"1800000005"}, "Retry-After": {"120"}}, nil, "", now, 0)
+	until, limited := quotaDeadline(quotaHeaders{"X-Ratelimit-Remaining": {"0"}, "X-Ratelimit-Reset": {"1800000005"}, "Retry-After": {"120"}}, nil, "", now, 0)
 	if !limited || until.Sub(now) != 2*time.Minute {
 		t.Fatal("Retry-After shortened by primary reset")
 	}
