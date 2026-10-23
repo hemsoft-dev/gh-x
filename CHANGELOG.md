@@ -13,6 +13,11 @@ and this project uses semantic versioning.
 
 ## [Unreleased]
 
+## [0.23.1] - 2026-10-23
+
+- fix: honor GitHub quota reset metadata across status requests (#240)
+- docs: record v0.23.0 release (#235)
+
 ## [0.23.0] - 2026-10-21
 
 - feat: add issue-driven project status view (#234)
@@ -384,7 +389,8 @@ the published releases above.
 - Dynamic or unreadable workflow definitions now display `unknown` in the
   trigger column instead of failing the list command.
 
-[Unreleased]: https://github.com/hemsoft-dev/gh-x/compare/v0.23.0...HEAD
+[Unreleased]: https://github.com/hemsoft-dev/gh-x/compare/v0.23.1...HEAD
+[0.23.1]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.1
 [0.23.0]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.0
 [0.22.0]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.22.0
 [0.21.2]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.21.2
