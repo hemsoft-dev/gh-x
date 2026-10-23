@@ -40,6 +40,11 @@ func TestMergedRepositoryPaginationAndFields(t *testing.T) {
 	ghExecFunc = func(args ...string) (bytes.Buffer, bytes.Buffer, error) {
 		calls++
 		command := strings.Join(args, " ")
+		if strings.Contains(command, "freshness:") {
+			rows := []pullRequest{{Number: 1, UpdatedAt: time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC), MergedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}, {Number: 2, UpdatedAt: time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC).Add(-time.Minute), MergedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}}
+			return mergedFreshnessTestResponse(t, rows, false, ""), bytes.Buffer{}, nil
+		}
+
 		if strings.Contains(command, "pullRequest(number:") {
 			details := map[int]any{101: json.RawMessage(`{"number":101,"title":"old PR merged today","state":"MERGED","author":{"login":"user","name":"User"},"mergedAt":"2026-10-07T01:00:00Z","updatedAt":"2026-10-07T02:00:00Z","headRefName":"fix","baseRefName":"main","mergeable":"MERGEABLE","reviewDecision":"APPROVED","latestReviews":{"nodes":[{"state":"APPROVED","author":{"login":"reviewer"}}]},"commits":{"nodes":[{"commit":{"statusCheckRollup":{"contexts":{"nodes":[{"__typename":"CheckRun","name":"CI","status":"COMPLETED","conclusion":"SUCCESS","checkSuite":{"workflowRun":{"workflow":{"name":"Tests"}}}},{"__typename":"StatusContext","context":"legacy","state":"SUCCESS"}]}}}}]}}`)}
 			return selectedMergedTestResponse(t, command, details), bytes.Buffer{}, nil
@@ -53,9 +58,9 @@ func TestMergedRepositoryPaginationAndFields(t *testing.T) {
 			if !strings.Contains(command, "first: 100, after: null") {
 				t.Fatalf("initial pagination = %s", command)
 			}
-			nodes := make([]map[string]int, 100)
+			nodes := make([]pullRequest, 100)
 			for i := range nodes {
-				nodes[i] = map[string]int{"number": i + 1}
+				nodes[i] = pullRequest{Number: i + 1, UpdatedAt: time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC).Add(-time.Duration(i) * time.Minute), MergedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 			}
 			data, err := json.Marshal(nodes)
 			if err != nil {
@@ -77,8 +82,8 @@ func TestMergedRepositoryPaginationAndFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 101 || calls != 8 {
-		t.Fatalf("rows = %d, calls = %d, want 101 and 8", len(got), calls)
+	if len(got) != 101 || calls != 9 {
+		t.Fatalf("rows = %d, calls = %d, want 101 and 9", len(got), calls)
 	}
 	var pr pullRequest
 	for _, row := range got {
@@ -164,16 +169,18 @@ func TestMergedEnterpriseWithoutWorkflowRun(t *testing.T) {
 			}
 			return *bytes.NewBufferString(`{"data":{"repository":{"pullRequests":{"nodes":[{"number":2}],"pageInfo":{"hasNextPage":false}}}}}`), bytes.Buffer{}, nil
 		case 3:
+			return mergedFreshnessTestResponse(t, []pullRequest{{Number: 1}, {Number: 2}}, false, ""), bytes.Buffer{}, nil
+		case 4:
 			return bytes.Buffer{}, bytes.Buffer{}, errors.New("GraphQL: Field 'workflowRun' doesn't exist on type 'CheckSuite'")
 		default:
-			if calls != 4 || strings.Contains(query, "workflowRun") {
+			if calls != 5 || strings.Contains(query, "workflowRun") {
 				t.Fatal("unsupported field retained or extra request")
 			}
 			return selectedMergedTestResponse(t, query, nil), bytes.Buffer{}, nil
 		}
 	}
 	got, err := fetchMergedRepositoryPullRequests(listOptions{repo: "ghe.example.com/owner/repo", limit: 2})
-	if err != nil || len(got) != 2 || calls != 4 {
+	if err != nil || len(got) != 2 || calls != 5 {
 		t.Fatalf("rows=%#v, calls=%d, err=%v", got, calls, err)
 	}
 }

@@ -55,30 +55,28 @@ func fetchMergedRepositoryPullRequests(options listOptions) ([]pullRequest, erro
 	return acquisition.rows, err
 }
 
-func fetchMergedPRPage(client *mergedQueryClient, owner, name, cursor string, limit int) (*mergedPRConnection, error) {
+func fetchMergedConnectionPage(client *mergedQueryClient, owner, name, cursor string, limit int, connection string) (*mergedPRConnection, error) {
 	after := "null"
 	if cursor != "" {
 		after = fmt.Sprintf("%q", cursor)
 	}
 	query := fmt.Sprintf(`query { repository(owner: %q, name: %q) {
-  pullRequests(states: MERGED, orderBy: {field: UPDATED_AT, direction: DESC}, first: %d, after: %s) {
+  %s: pullRequests(states: MERGED, orderBy: {field: UPDATED_AT, direction: DESC}, first: %d, after: %s) {
     nodes { %s }
     pageInfo { hasNextPage endCursor }
   }
-} }`, owner, name, limit, after, "number updatedAt mergedAt")
+} }`, owner, name, connection, limit, after, "number updatedAt mergedAt")
 	data, err := client.query(query)
 	if err != nil {
 		return nil, err
 	}
-	return parseMergedPRPage(data)
+	return parseMergedConnection(data, connection)
 }
 
-func parseMergedPRPage(data []byte) (*mergedPRConnection, error) {
+func parseMergedConnection(data []byte, connection string) (*mergedPRConnection, error) {
 	var response struct {
 		Data struct {
-			Repository *struct {
-				PullRequests *mergedPRConnection `json:"pullRequests"`
-			} `json:"repository"`
+			Repository map[string]*mergedPRConnection `json:"repository"`
 		} `json:"data"`
 		Errors []struct {
 			Message string `json:"message"`
@@ -90,10 +88,10 @@ func parseMergedPRPage(data []byte) (*mergedPRConnection, error) {
 	if len(response.Errors) > 0 {
 		return nil, fmt.Errorf("merged pull requests: %s", response.Errors[0].Message)
 	}
-	if response.Data.Repository == nil || response.Data.Repository.PullRequests == nil {
+	if response.Data.Repository == nil || response.Data.Repository[connection] == nil {
 		return nil, fmt.Errorf("merged pull request repository data unavailable")
 	}
-	return response.Data.Repository.PullRequests, nil
+	return response.Data.Repository[connection], nil
 }
 
 func (node mergedPRNode) pullRequestRow() pullRequest {

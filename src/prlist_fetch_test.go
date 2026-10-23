@@ -72,6 +72,9 @@ func TestFetchRecentlyMergedPullRequestsExpandsUntilMergeOrderIsProven(t *testin
 	ghExecFunc = func(args ...string) (bytes.Buffer, bytes.Buffer, error) {
 		calls++
 		command := strings.Join(args, " ")
+		if strings.Contains(command, "freshness:") {
+			return mergedFreshnessTestResponse(t, firstPage[:2], false, ""), bytes.Buffer{}, nil
+		}
 		if strings.Contains(command, "pullRequest(number:") {
 			enrichedRows += len(mergedAliasPattern.FindAllStringSubmatch(command, -1))
 			return selectedMergedTestResponse(t, command, map[int]any{1: firstPage[0], 3: secondPage[0]}), bytes.Buffer{}, nil
@@ -101,8 +104,8 @@ func TestFetchRecentlyMergedPullRequestsExpandsUntilMergeOrderIsProven(t *testin
 		t.Fatal(err)
 	}
 	t.Logf("MERGED_REQUEST_BUDGET fixture=expanding requests=%d candidates=%d enriched=%d", calls, candidateRows, enrichedRows)
-	if calls != 3 || candidateRows != 27 || enrichedRows != 2 {
-		t.Fatalf("requests=%d candidate rows=%d enriched=%d, want3/27/2", calls, candidateRows, enrichedRows)
+	if calls != 4 || candidateRows != 27 || enrichedRows != 2 {
+		t.Fatalf("requests=%d candidate rows=%d enriched=%d, want4/27/2", calls, candidateRows, enrichedRows)
 	}
 	if len(got) != 2 || got[0].Number != 3 || got[1].Number != 1 {
 		t.Fatalf("recent merges = %#v, want #3 then #1", got)

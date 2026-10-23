@@ -14,13 +14,19 @@ type mergedCandidateScanner struct {
 	owner, name, cursor string
 	rows                []pullRequest
 	exhausted           bool
+	pages               int
+	connection          string
 	seen                map[string]bool
 }
 
 func (scan *mergedCandidateScanner) loadTo(limit int) error {
 	for len(scan.rows) < limit && !scan.exhausted {
 		count := min(100, limit-len(scan.rows))
-		page, err := fetchMergedPRPage(scan.client, scan.owner, scan.name, scan.cursor, count)
+		connection := scan.connection
+		if connection == "" {
+			connection = "pullRequests"
+		}
+		page, err := fetchMergedConnectionPage(scan.client, scan.owner, scan.name, scan.cursor, count, connection)
 		if err != nil {
 			return err
 		}
@@ -30,6 +36,7 @@ func (scan *mergedCandidateScanner) loadTo(limit int) error {
 		if err := scan.advance(page); err != nil {
 			return err
 		}
+		scan.pages++
 		for _, node := range page.Nodes {
 			scan.rows = append(scan.rows, node.pullRequest)
 		}
@@ -98,6 +105,9 @@ func fetchMergedAcquisition(options listOptions, supplemental bool) (mergedAcqui
 	if err != nil {
 		return result, err
 	}
+	if err := validateMergedSnapshot(&scan); err != nil {
+		return result, err
+	}
 	result.rows, result.supplemental, err = enrichMergedSelection(&client, owner, name, selected, supplemental)
 	return result, err
 }
@@ -141,6 +151,11 @@ func fetchSelectedMergedBatch(client *mergedQueryClient, owner, name string, sel
 	if fetchErr != nil && !onlyMergedSupplementalErrors(data) {
 		return nil, prSupplementalData{}, fetchErr
 	}
+	supplementalData := data
+	data, recoveryErr := recoverMergedMetadata(client, owner, name, data, numbers)
+	if recoveryErr != nil {
+		return nil, prSupplementalData{}, recoveryErr
+	}
 	nodes, err := parseSelectedMerged(data, numbers)
 	if err != nil {
 		return nil, prSupplementalData{}, retainFirstError(fetchErr, err)
@@ -154,18 +169,13 @@ func fetchSelectedMergedBatch(client *mergedQueryClient, owner, name string, sel
 	}
 	info := prSupplementalData{}
 	if supplemental {
-		info.Info, info.Unavailable, info.Err = parseSupplementalBatch(data, fetchErr, numbers)
+		info.Info, info.Unavailable, info.Err = parseSupplementalBatch(supplementalData, fetchErr, numbers)
 	}
 	return rows, info, nil
 }
 
 func parseSelectedMerged(data []byte, numbers []int) ([]mergedPRNode, error) {
-	var response struct {
-		Data struct {
-			Repository map[string]*mergedPRNode `json:"repository"`
-		} `json:"data"`
-		Errors []graphQLError `json:"errors"`
-	}
+	var response selectedMergedResponse
 	if err := json.Unmarshal(data, &response); err != nil {
 		return nil, fmt.Errorf("decode selected merged pull requests: %w", err)
 	}
@@ -203,4 +213,11 @@ func onlyMergedSupplementalErrors(data []byte) bool {
 		}
 	}
 	return true
+}
+
+type selectedMergedResponse struct {
+	Data struct {
+		Repository map[string]*mergedPRNode `json:"repository"`
+	} `json:"data"`
+	Errors []graphQLError `json:"errors"`
 }
