@@ -1,0 +1,22 @@
+[
+ {
+  "RuleID": "github-pat",
+  "Description": "Uncovered a GitHub Personal Access Token, potentially leading to unauthorized repository access and sensitive content exposure.",
+  "StartLine": 1,
+  "EndLine": 1,
+  "StartColumn": 7,
+  "EndColumn": 46,
+  "Match": "REDACTED",
+  "Secret": "REDACTED",
+  "File": "fixture.txt",
+  "SymlinkFile": "",
+  "Commit": "5f40376a95c341bc29eac1d71ae8f9ec8daf3e30",
+  "Entropy": 4.046439,
+  "Author": "Fixture",
+  "Email": "fixture@example.invalid",
+  "Date": "2026-10-23T04:50:10Z",
+  "Message": "synthetic credential fixture",
+  "Tags": [],
+  "Fingerprint": "5f40376a95c341bc29eac1d71ae8f9ec8daf3e30:fixture.txt:github-pat:1"
+ }
+]

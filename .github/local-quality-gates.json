@@ -18,6 +18,8 @@
     { "id": "errcheck", "tools": ["go", "errcheck"], "needs": [], "ci": ["lint/Errcheck (unchecked errors)"] },
     { "id": "deadcode", "tools": ["go", "deadcode"], "needs": [], "ci": ["lint/Dead code detection"] },
     { "id": "vulnerabilities", "tools": ["go", "govulncheck"], "needs": [], "ci": ["lint/Vulnerability scan"] },
+    { "id": "credential-fixtures", "tools": ["go", "git", "gitleaks"], "needs": [], "ci": ["credential-scan/Test credential scanner fixtures"] },
+    { "id": "credentials", "tools": ["go", "git", "gitleaks"], "needs": ["credential-fixtures"], "ci": ["credential-scan/Scan source and reachable history"] },
     { "id": "suppressions", "tools": [], "needs": [], "ci": ["lint/No lint suppressions allowed"] },
     { "id": "output-policy", "tools": [], "needs": [], "ci": ["lint/No anti-patterns allowed"] },
     { "id": "markdown", "tools": ["npx"], "needs": [], "ci": ["lint/Lint markdown"] },
@@ -43,6 +45,7 @@
     { "step": "gate/Evaluate all gates", "reason": "The required GitHub Quality Gate includes hosted checks; local pass does not replace it." }
   ],
   "infrastructure": [
+    { "step": "credential-scan/Install credential scanner", "reason": "Local Gitleaks must already match quality-tools.env; the scanner verifies the version. CI installation verifies the committed upstream archive checksum." },
     { "step": "lint/Install lint tools", "reason": "Local analyzers must already be installed at quality-tools.env pins; the audit verifies versions without installing." },
     { "step": "quality/Install quality tools", "reason": "Local analyzers must already be installed at quality-tools.env pins." },
     { "step": "mutation/Install gremlins", "reason": "Local Gremlins must already match quality-tools.env." },

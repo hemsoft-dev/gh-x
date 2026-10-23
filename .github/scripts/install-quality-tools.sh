@@ -22,6 +22,15 @@ install_mutation_tools() {
   go install "github.com/go-gremlins/gremlins/cmd/gremlins@${GREMLINS_VERSION}"
 }
 
+install_credential_scanner() {
+  local destination
+  destination="$(go env GOBIN)"
+  if [[ -z "$destination" ]]; then
+    destination="$(go env GOPATH)/bin"
+  fi
+  go run "$script_dir/credential-scan" -repo "$script_dir/../.." -install "$destination"
+}
+
 case "${1:-all}" in
   lint)
     install_lint_tools
@@ -32,13 +41,17 @@ case "${1:-all}" in
   mutation)
     install_mutation_tools
     ;;
+  credentials)
+    install_credential_scanner
+    ;;
   all)
     install_lint_tools
     install_quality_tools
     install_mutation_tools
+    install_credential_scanner
     ;;
   *)
-    echo "usage: $0 [lint|quality|mutation|all]" >&2
+    echo "usage: $0 [lint|quality|mutation|credentials|all]" >&2
     exit 2
     ;;
 esac

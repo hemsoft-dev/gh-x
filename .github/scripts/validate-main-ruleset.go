@@ -215,6 +215,7 @@ func validateReviewCI(ci workflow) {
 
 func validateBuildCI(ci workflow) {
 	require(helperQualityScopesReady(ci), "all maintained Go helpers must participate in shared quality gates")
+	require(credentialScanReady(ci.Jobs["credential-scan"]), "credential scanning must require pinned installation, real fixtures and complete source/history scans")
 	require(dashboardQualityReady(ci), "dashboard JavaScript quality must use locked tools, shared commands and retained failure evidence")
 	crossBuild := namedStep(ci.Jobs["build-and-test"], "Build all release targets")
 	require(reflect.DeepEqual(crossBuild.Env, map[string]string{
@@ -229,7 +230,7 @@ go run ./.github/scripts/release-targets build`, "CI must build the canonical re
 	require(gate.Name == "Quality Gate", "CI must publish the Quality Gate check")
 	require(windowsInstallerGateReady(ci.Jobs["windows-installer"], gate), "Quality Gate must require Windows PowerShell 5.1 installer regression tests")
 	require(windowsLauncherWorkflowReady(ci), "Quality Gate must execute the standalone launcher lifecycle on Windows with pinned Node")
-	require(equal(gate.Needs, "build-and-test", "windows-installer", "lint", "quality", "mutation", "security-analysis", "dependency-review", "codex-review", "performance"), "Quality Gate must depend on every build, quality, security, review, and performance job")
+	require(equal(gate.Needs, "build-and-test", "windows-installer", "lint", "quality", "mutation", "security-analysis", "dependency-review", "codex-review", "performance", "credential-scan"), "Quality Gate must depend on every build, quality, security, review, performance and credential job")
 	gateStep := namedStep(gate, "Evaluate all gates")
 	gateRun := gateStep.Run
 	require(reflect.DeepEqual(gateStep.Env, map[string]string{
@@ -415,6 +416,7 @@ echo "CodeQL:       ${{ needs.security-analysis.result }}"
 echo "Dependencies: ${{ needs.dependency-review.result }}"
 echo "Codex review: ${{ needs.codex-review.result }}"
 echo "Performance:  ${{ needs.performance.result }}"
+echo "Credentials:  ${{ needs.credential-scan.result }}"
 
 if [[ "${{ needs.build-and-test.result }}" != "success" || \
       "${{ needs.windows-installer.result }}" != "success" || \
@@ -423,6 +425,7 @@ if [[ "${{ needs.build-and-test.result }}" != "success" || \
       "${{ needs.mutation.result }}" != "success" || \
       "${{ needs.security-analysis.result }}" != "success" || \
       "${{ needs.dependency-review.result }}" != "success" || \
+      "${{ needs.credential-scan.result }}" != "success" || \
       "${{ needs.performance.result }}" != "success" ]]; then
   echo "::error::One or more quality gates failed"
   exit 1
@@ -820,4 +823,21 @@ fi`,
 		"Enforce: CRAP score < 30": `. ./.agents/skills/perfection/scripts/perfection-audit.ps1
 Assert-CrapThreshold coverage.out 30.0`,
 	},
+}
+
+func credentialScanReady(job workflowJob) bool {
+	if len(job.Steps) != 5 || !isPinnedAction(job.Steps[0].Uses, "actions/checkout") || !isPinnedAction(job.Steps[1].Uses, "actions/setup-go") {
+		return false
+	}
+	expected := workflowJob{
+		Name: "Credential Scan", RunsOn: "ubuntu-latest", TimeoutMinutes: 10,
+		Steps: []workflowStep{
+			{Uses: job.Steps[0].Uses, With: map[string]string{"fetch-depth": "0"}},
+			{Uses: job.Steps[1].Uses, With: map[string]string{"go-version-file": "go.mod"}},
+			{Name: "Install credential scanner", Run: "bash .github/scripts/install-quality-tools.sh credentials"},
+			{Name: "Test credential scanner fixtures", Run: "go test -race -count=1 -timeout=90s ./.github/scripts/credential-scan -run '^TestGitleaks' -gitleaks-integration"},
+			{Name: "Scan source and reachable history", Run: `go run ./.github/scripts/credential-scan -report "$RUNNER_TEMP/credential-scope.json"`},
+		},
+	}
+	return reflect.DeepEqual(job, expected)
 }
