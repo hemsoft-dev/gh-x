@@ -1,0 +1,838 @@
+{
+  "data": {
+    "repository": {
+      "pr240": {
+        "number": 240,
+        "title": "fix: honor GitHub quota reset metadata across status requests",
+        "state": "MERGED",
+        "isDraft": false,
+        "reviewDecision": null,
+        "updatedAt": "2026-10-23T03:11:23Z",
+        "mergedAt": "2026-10-23T03:11:20Z",
+        "headRefName": "fix/236-quota-reset",
+        "baseRefName": "main",
+        "url": "https://github.com/hemsoft-dev/gh-x/pull/240",
+        "mergeable": "UNKNOWN",
+        "author": {
+          "login": "HemSoft",
+          "name": "Franz Hemmer"
+        },
+        "latestReviews": {
+          "nodes": [
+            {
+              "state": "COMMENTED",
+              "author": {
+                "login": "chatgpt-codex-connector"
+              }
+            }
+          ]
+        },
+        "commits": {
+          "nodes": [
+            {
+              "commit": {
+                "id": "C_kwDOS0FxINoAKGE1ZGU0NDdkZDg3N2I2ZGNhODkwMjUzNTNhMWVkNmRhMWVjOWI0MTM",
+                "statusCheckRollup": {
+                  "contexts": {
+                    "nodes": [
+                      {
+                        "__typename": "CheckRun",
+                        "name": "Build & Test",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T02:56:57Z",
+                        "completedAt": "2026-10-23T03:03:58Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "Build & Test",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T02:57:34Z",
+                        "completedAt": "2026-10-23T03:04:35Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "Build & Test",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T02:59:14Z",
+                        "completedAt": "2026-10-23T03:06:17Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "Dashboard installer (Windows PowerShell 5.1)",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T02:56:57Z",
+                        "completedAt": "2026-10-23T02:58:46Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "Dashboard installer (Windows PowerShell 5.1)",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T02:57:34Z",
+                        "completedAt": "2026-10-23T02:59:17Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "Dashboard installer (Windows PowerShell 5.1)",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T02:59:14Z",
+                        "completedAt": "2026-10-23T03:00:46Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "Lint",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T02:56:57Z",
+                        "completedAt": "2026-10-23T02:58:11Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "Lint",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T02:57:33Z",
+                        "completedAt": "2026-10-23T02:58:50Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "Lint",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T02:59:14Z",
+                        "completedAt": "2026-10-23T03:00:29Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "CodeQL Analysis (go)",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T02:56:57Z",
+                        "completedAt": "2026-10-23T02:58:03Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "CodeQL Analysis (go)",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T02:57:33Z",
+                        "completedAt": "2026-10-23T02:58:22Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "CodeQL Analysis (go)",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T02:59:14Z",
+                        "completedAt": "2026-10-23T03:00:19Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "CodeQL Analysis (javascript-typescript)",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T02:56:57Z",
+                        "completedAt": "2026-10-23T02:57:53Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "CodeQL Analysis (javascript-typescript)",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T02:57:34Z",
+                        "completedAt": "2026-10-23T02:58:28Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "CodeQL Analysis (javascript-typescript)",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T02:59:14Z",
+                        "completedAt": "2026-10-23T03:00:42Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "Dependency Review",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T02:56:57Z",
+                        "completedAt": "2026-10-23T02:57:03Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "Dependency Review",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T02:57:34Z",
+                        "completedAt": "2026-10-23T02:57:41Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "Dependency Review",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T02:59:14Z",
+                        "completedAt": "2026-10-23T02:59:19Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "Mutation Testing",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T02:56:57Z",
+                        "completedAt": "2026-10-23T02:57:26Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "Mutation Testing",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T02:57:34Z",
+                        "completedAt": "2026-10-23T02:58:06Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "Mutation Testing",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T02:59:14Z",
+                        "completedAt": "2026-10-23T02:59:46Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "Current-head Codex Review",
+                        "status": "COMPLETED",
+                        "conclusion": "CANCELLED",
+                        "startedAt": "2026-10-23T02:56:57Z",
+                        "completedAt": "2026-10-23T02:58:27Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "Current-head Codex Review",
+                        "status": "COMPLETED",
+                        "conclusion": "CANCELLED",
+                        "startedAt": "2026-10-23T02:58:29Z",
+                        "completedAt": "2026-10-23T03:00:00Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "Current-head Codex Review",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T03:00:01Z",
+                        "completedAt": "2026-10-23T03:08:06Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "Performance Budgets",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T02:56:57Z",
+                        "completedAt": "2026-10-23T02:58:01Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "Performance Budgets",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T02:57:34Z",
+                        "completedAt": "2026-10-23T02:58:37Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "Performance Budgets",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T02:59:14Z",
+                        "completedAt": "2026-10-23T03:00:10Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "Quality Gates",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T03:04:01Z",
+                        "completedAt": "2026-10-23T03:04:45Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "Quality Gates",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T03:04:36Z",
+                        "completedAt": "2026-10-23T03:05:18Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "Quality Gates",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T03:06:20Z",
+                        "completedAt": "2026-10-23T03:06:54Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "Quality Gate",
+                        "status": "COMPLETED",
+                        "conclusion": "FAILURE",
+                        "startedAt": "2026-10-23T03:04:46Z",
+                        "completedAt": "2026-10-23T03:04:49Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "Quality Gate",
+                        "status": "COMPLETED",
+                        "conclusion": "FAILURE",
+                        "startedAt": "2026-10-23T03:05:20Z",
+                        "completedAt": "2026-10-23T03:05:24Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "Quality Gate",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T03:08:07Z",
+                        "completedAt": "2026-10-23T03:08:10Z",
+                        "checkSuite": {
+                          "workflowRun": {
+                            "workflow": {
+                              "name": "CI Quality Gates"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "CodeQL",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-10-23T02:57:43Z",
+                        "completedAt": "2026-10-23T02:57:45Z",
+                        "checkSuite": {
+                          "workflowRun": null
+                        }
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "endCursor": "MzQ"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "headRefOid": "a5de447dd877b6dca89025353a1ed6da1ec9b413",
+        "closingIssuesReferences": {
+          "totalCount": 1,
+          "nodes": [
+            {
+              "number": 236,
+              "url": "https://github.com/hemsoft-dev/gh-x/issues/236"
+            }
+          ]
+        },
+        "comments": {
+          "totalCount": 5,
+          "nodes": [
+            {
+              "body": "<!-- codex-pull-request-review-summary -->\n<!-- codex-review-state:v1 {\"code_review\":{\"commit_sha\":\"a5de447dd877b6dca89025353a1ed6da1ec9b413\",\"has_any_findings\":false,\"has_unresolved_findings\":false,\"status\":\"completed\"},\"security_review\":{\"commit_sha\":null,\"has_any_findings\":null,\"has_unresolved_findings\":null,\"status\":null}} -->\n\n## Codex Review Summary\n\nThis comment shows the latest Codex review activity on this pull request.\n\n| Review | Status | Commit | Review trigger |\n| --- | --- | --- | --- |\n| \ud83d\udcdd **Code Review** | \u2705 **Completed** <relative-time datetime=\"2026-10-23T03:05:44.482953Z\">2026-10-23T03:05:44.482953Z</relative-time> | `a5de447` | Manual request |\n\n\n\n<details> <summary>\u2139\ufe0f About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\" or \"@codex security review\".\n\nCodex reacts with \ud83d\udc40 while any review is running, comments if it has suggestions, and reacts with \ud83d\udc4d once all reviews finish with no findings.\n\n</details>",
+              "createdAt": "2026-10-23T02:39:00Z",
+              "author": {
+                "login": "chatgpt-codex-connector",
+                "__typename": "Bot"
+              }
+            },
+            {
+              "body": "@codex review",
+              "createdAt": "2026-10-23T02:39:03Z",
+              "author": {
+                "login": "HemSoft",
+                "__typename": "User"
+              }
+            },
+            {
+              "body": "@codex review",
+              "createdAt": "2026-10-23T02:41:57Z",
+              "author": {
+                "login": "HemSoft",
+                "__typename": "User"
+              }
+            },
+            {
+              "body": "@codex review",
+              "createdAt": "2026-10-23T02:57:30Z",
+              "author": {
+                "login": "HemSoft",
+                "__typename": "User"
+              }
+            },
+            {
+              "body": "<!-- codex-review-receipt:v1 -->\n\nCodex Review: Didn't find any major issues. You're on a roll.\n\n**Reviewed commit:** `a5de447dd8`\n\n<details> <summary>\u2139\ufe0f About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\".\n\nIf Codex has suggestions, it will comment; otherwise it will react with \ud83d\udc4d.\n\n\n\n\nCodex can also answer questions or update the PR. Try commenting \"@codex address that feedback\".\n            \n</details>",
+              "createdAt": "2026-10-23T03:05:43Z",
+              "author": {
+                "login": "chatgpt-codex-connector",
+                "__typename": "Bot"
+              }
+            }
+          ]
+        },
+        "reactions": {
+          "totalCount": 1,
+          "nodes": [
+            {
+              "createdAt": "2026-10-23T03:05:48Z",
+              "user": {
+                "login": "chatgpt-codex-connector[bot]",
+                "__typename": "User"
+              }
+            }
+          ]
+        },
+        "reviewThreads": {
+          "totalCount": 6,
+          "nodes": [
+            {
+              "isResolved": true,
+              "comments": {
+                "nodes": [
+                  {
+                    "author": {
+                      "login": "chatgpt-codex-connector",
+                      "__typename": "Bot"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "isResolved": true,
+              "comments": {
+                "nodes": [
+                  {
+                    "author": {
+                      "login": "chatgpt-codex-connector",
+                      "__typename": "Bot"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "isResolved": true,
+              "comments": {
+                "nodes": [
+                  {
+                    "author": {
+                      "login": "chatgpt-codex-connector",
+                      "__typename": "Bot"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "isResolved": true,
+              "comments": {
+                "nodes": [
+                  {
+                    "author": {
+                      "login": "chatgpt-codex-connector",
+                      "__typename": "Bot"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "isResolved": true,
+              "comments": {
+                "nodes": [
+                  {
+                    "author": {
+                      "login": "chatgpt-codex-connector",
+                      "__typename": "Bot"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "isResolved": true,
+              "comments": {
+                "nodes": [
+                  {
+                    "author": {
+                      "login": "chatgpt-codex-connector",
+                      "__typename": "Bot"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "reviews": {
+          "totalCount": 7,
+          "nodes": [
+            {
+              "state": "COMMENTED",
+              "body": "<!-- codex-review-receipt:v1 -->\n\n\n### \ud83d\udca1 Codex Review\n\nHere are some automated review suggestions for this pull request.\n\n**Reviewed commit:** `05cb5c68a8`\n    \n\n<details> <summary>\u2139\ufe0f About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\".\n\nIf Codex has suggestions, it will comment; otherwise it will react with \ud83d\udc4d.\n\n\n\n\nCodex can also answer questions or update the PR. Try commenting \"@codex address that feedback\".\n            \n</details>",
+              "submittedAt": "2026-10-23T02:50:08Z",
+              "commit": {
+                "oid": "05cb5c68a8e1fc0ff90a74e12fe93b2daf211b25"
+              },
+              "author": {
+                "login": "chatgpt-codex-connector",
+                "__typename": "Bot"
+              },
+              "comments": {
+                "totalCount": 6
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "body": "",
+              "submittedAt": "2026-10-23T02:57:20Z",
+              "commit": {
+                "oid": "a5de447dd877b6dca89025353a1ed6da1ec9b413"
+              },
+              "author": {
+                "login": "HemSoft",
+                "__typename": "User"
+              },
+              "comments": {
+                "totalCount": 1
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "body": "",
+              "submittedAt": "2026-10-23T02:57:21Z",
+              "commit": {
+                "oid": "a5de447dd877b6dca89025353a1ed6da1ec9b413"
+              },
+              "author": {
+                "login": "HemSoft",
+                "__typename": "User"
+              },
+              "comments": {
+                "totalCount": 1
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "body": "",
+              "submittedAt": "2026-10-23T02:57:23Z",
+              "commit": {
+                "oid": "a5de447dd877b6dca89025353a1ed6da1ec9b413"
+              },
+              "author": {
+                "login": "HemSoft",
+                "__typename": "User"
+              },
+              "comments": {
+                "totalCount": 1
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "body": "",
+              "submittedAt": "2026-10-23T02:57:24Z",
+              "commit": {
+                "oid": "a5de447dd877b6dca89025353a1ed6da1ec9b413"
+              },
+              "author": {
+                "login": "HemSoft",
+                "__typename": "User"
+              },
+              "comments": {
+                "totalCount": 1
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "body": "",
+              "submittedAt": "2026-10-23T02:57:25Z",
+              "commit": {
+                "oid": "a5de447dd877b6dca89025353a1ed6da1ec9b413"
+              },
+              "author": {
+                "login": "HemSoft",
+                "__typename": "User"
+              },
+              "comments": {
+                "totalCount": 1
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "body": "",
+              "submittedAt": "2026-10-23T02:57:27Z",
+              "commit": {
+                "oid": "a5de447dd877b6dca89025353a1ed6da1ec9b413"
+              },
+              "author": {
+                "login": "HemSoft",
+                "__typename": "User"
+              },
+              "comments": {
+                "totalCount": 1
+              }
+            }
+          ]
+        },
+        "approvedReviews": {
+          "totalCount": 0,
+          "pageInfo": {
+            "hasPreviousPage": false
+          },
+          "nodes": []
+        }
+      },
+      "pullRequests": {
+        "nodes": [
+          {
+            "number": 240,
+            "updatedAt": "2026-10-23T03:11:23Z",
+            "mergedAt": "2026-10-23T03:11:20Z"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": true,
+          "endCursor": "Y3Vyc29yOnYyOpK0MjAyNi0xMC0yM1QwMzoxMToyM1rPAAAAASim1Is="
+        }
+      }
+    }
+  }
+}

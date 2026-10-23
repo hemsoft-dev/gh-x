@@ -51,60 +51,32 @@ type mergedPRConnection struct {
 }
 
 func fetchMergedRepositoryPullRequests(options listOptions) ([]pullRequest, error) {
-	owner, name, err := resolveRepo(options.repo)
-	if err != nil {
-		return nil, err
-	}
-	host := repositoryTargetHost(options.repo)
-	client := mergedQueryClient{host: host}
-	var result []pullRequest
-	cursor := ""
-	for len(result) < options.limit {
-		page, err := fetchMergedPRPage(&client, owner, name, cursor, min(100, options.limit-len(result)))
-		if err != nil {
-			return nil, err
-		}
-		for _, node := range page.Nodes {
-			if err := completeMergedChecks(&client, &node); err != nil {
-				return nil, err
-			}
-			result = append(result, node.pullRequestRow())
-		}
-		if !page.PageInfo.HasNextPage {
-			return result, nil
-		}
-		if len(page.Nodes) == 0 || page.PageInfo.EndCursor == "" || page.PageInfo.EndCursor == cursor {
-			return nil, fmt.Errorf("merged pull request pagination did not advance")
-		}
-		cursor = page.PageInfo.EndCursor
-	}
-	return result, nil
+	acquisition, err := fetchMergedAcquisition(options, false)
+	return acquisition.rows, err
 }
 
-func fetchMergedPRPage(client *mergedQueryClient, owner, name, cursor string, limit int) (*mergedPRConnection, error) {
+func fetchMergedConnectionPage(client *mergedQueryClient, owner, name, cursor string, limit int, connection string) (*mergedPRConnection, error) {
 	after := "null"
 	if cursor != "" {
 		after = fmt.Sprintf("%q", cursor)
 	}
 	query := fmt.Sprintf(`query { repository(owner: %q, name: %q) {
-  pullRequests(states: MERGED, orderBy: {field: UPDATED_AT, direction: DESC}, first: %d, after: %s) {
+  %s: pullRequests(states: MERGED, orderBy: {field: UPDATED_AT, direction: DESC}, first: %d, after: %s) {
     nodes { %s }
     pageInfo { hasNextPage endCursor }
   }
-} }`, owner, name, limit, after, mergedPRFields)
+} }`, owner, name, connection, limit, after, "number updatedAt mergedAt")
 	data, err := client.query(query)
 	if err != nil {
 		return nil, err
 	}
-	return parseMergedPRPage(data)
+	return parseMergedConnection(data, connection)
 }
 
-func parseMergedPRPage(data []byte) (*mergedPRConnection, error) {
+func parseMergedConnection(data []byte, connection string) (*mergedPRConnection, error) {
 	var response struct {
 		Data struct {
-			Repository *struct {
-				PullRequests *mergedPRConnection `json:"pullRequests"`
-			} `json:"repository"`
+			Repository map[string]*mergedPRConnection `json:"repository"`
 		} `json:"data"`
 		Errors []struct {
 			Message string `json:"message"`
@@ -116,10 +88,10 @@ func parseMergedPRPage(data []byte) (*mergedPRConnection, error) {
 	if len(response.Errors) > 0 {
 		return nil, fmt.Errorf("merged pull requests: %s", response.Errors[0].Message)
 	}
-	if response.Data.Repository == nil || response.Data.Repository.PullRequests == nil {
+	if response.Data.Repository == nil || response.Data.Repository[connection] == nil {
 		return nil, fmt.Errorf("merged pull request repository data unavailable")
 	}
-	return response.Data.Repository.PullRequests, nil
+	return response.Data.Repository[connection], nil
 }
 
 func (node mergedPRNode) pullRequestRow() pullRequest {

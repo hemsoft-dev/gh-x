@@ -1,0 +1,54 @@
+{
+  "data": {
+    "repository": {
+      "pr43": {
+        "number": 43,
+        "title": "Existing merge missing from search",
+        "state": "MERGED",
+        "author": {
+          "login": "octocat",
+          "name": "Octo Cat"
+        },
+        "mergedAt": "2026-09-03T12:00:00Z",
+        "updatedAt": "2026-09-03T12:00:01Z",
+        "headRefName": "test/merged-fixture",
+        "baseRefName": "main",
+        "url": "https://github.com/HemSoft/gh-x/pull/43",
+        "latestReviews": {
+          "nodes": []
+        },
+        "commits": {
+          "nodes": []
+        },
+        "headRefOid": "merged-fixture-head",
+        "closingIssuesReferences": {
+          "totalCount": 0,
+          "nodes": []
+        },
+        "comments": {
+          "totalCount": 0,
+          "nodes": []
+        },
+        "reactions": {
+          "totalCount": 0,
+          "nodes": []
+        },
+        "reviewThreads": {
+          "totalCount": 0,
+          "nodes": []
+        },
+        "reviews": {
+          "totalCount": 0,
+          "nodes": []
+        },
+        "approvedReviews": {
+          "totalCount": 0,
+          "nodes": [],
+          "pageInfo": {
+            "hasPreviousPage": false
+          }
+        }
+      }
+    }
+  }
+}

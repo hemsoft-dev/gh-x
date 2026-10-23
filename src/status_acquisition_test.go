@@ -224,6 +224,8 @@ func acquisitionFixture(args []string) string {
 		return "merged-prs.json"
 	case strings.Contains(value, "pullRequest(number: 42)"):
 		return "pr-supplemental.json"
+	case strings.Contains(value, "pullRequest(number: 43)") && strings.Contains(value, "latestReviews"):
+		return "merged-pr-selected.json"
 	case strings.Contains(value, "pullRequest(number: 43)"):
 		return "merged-pr-supplemental.json"
 	default:

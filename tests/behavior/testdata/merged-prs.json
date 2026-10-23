@@ -5,19 +5,14 @@
         "nodes": [
           {
             "number": 43,
-            "title": "Existing merge missing from search",
-            "state": "MERGED",
-            "author": { "login": "octocat", "name": "Octo Cat" },
             "mergedAt": "2026-09-03T12:00:00Z",
-            "updatedAt": "2026-09-03T12:00:01Z",
-            "headRefName": "test/merged-fixture",
-            "baseRefName": "main",
-            "url": "https://github.com/HemSoft/gh-x/pull/43",
-            "latestReviews": { "nodes": [] },
-            "commits": { "nodes": [] }
+            "updatedAt": "2026-09-03T12:00:01Z"
           }
         ],
-        "pageInfo": { "hasNextPage": false, "endCursor": null }
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
       }
     }
   }

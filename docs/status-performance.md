@@ -40,7 +40,8 @@ retry deadline, including expired results. Pruning retains snapshots until their
 latest section retry deadline, even across options or color changes. A contended writer skips publication;
 readers continue using atomic snapshots without taking the lock.
 
-`gh x status --refresh` explicitly bypasses these cached results and cooldowns.
+`gh x status --refresh` explicitly bypasses the status snapshot and section
+cooldowns. API quota cooldowns remain enforced as described below.
 
 The authentication fingerprint includes configuration, token overrides and
 credential-store identities. GitHub CLI prefers a configured active token over
@@ -69,11 +70,57 @@ field-specific incomplete-data handling. It still makes requests serially.
 If an older Enterprise schema rejects the hierarchy fields, status retries
 relationships separately and keeps hierarchy data visibly unavailable.
 
-The merged candidate query remains complete. Removing candidate check/review
-fields needs a separate selection/enrichment design that preserves pagination,
-Enterprise schema handling and actual merge-time ordering. Longer TTLs and
-unbounded parallel requests were rejected because they trade freshness and
-rate-limit reliability for lower measured latency.
+Merged discovery queries the repository connection with only `number`,
+`updatedAt` and `mergedAt`, ordered by update time. Candidate windows expand from
+25 to at most 1,000 rows while retaining every page and its continuation cursor.
+After a multi-page scan, a lightweight freshness query rechecks the leading
+update-time group, including timestamp ties and one boundary row. Concurrent
+changes that could move an unseen PR across the saved cursor fail visibly
+instead of claiming a complete selection. The complete leading group must fit
+in one consistency response; an oversized or truncated group fails closed,
+because paging the consistency check would introduce the same race again.
+Selection uses actual merge time. It stops only after exhausting the connection
+or proving that the update-time boundary cannot hide a newer merge. An
+unprovable result at the cap fails visibly.
+
+Only selected rows fetch metadata, reviews and checks. The status/list path
+combines those fields with its existing supplemental query, in batches of twenty
+aliases, so it does not add a request to the populated fixture. Check pagination
+runs only for those selected rows, and retains the older Enterprise fallback for
+`CheckSuite.workflowRun`. Repository-connection discovery preserves behavior after
+repository transfers. Query ordering and pagination use the
+[GitHub GraphQL schema](https://docs.github.com/en/graphql/reference/objects#repository).
+
+The deterministic fixtures assert these GraphQL operation and row budgets.
+They count operations at the injected acquisition boundary, separately from the
+subprocess counts recorded by the status benchmark. They are not measurements
+of live GitHub HTTP traffic or point cost. Additional selected check pages and an
+Enterprise fallback retry are separate operations.
+
+| Fixture | Candidate rows before/after | Rows fetching reviews/checks before/after | Freshness rows after | List-path operations before/after |
+| --- | --- | --- | --- | --- |
+| Populated, one merge | 1 / 1 | 1 / 1 | 0 | 2 / 2 |
+| Expanding, two selected | 52 / 27 | 52 / 2 | 2 | 3 / 4 |
+| Large, one selected from 125 | 300 / 125 | 300 / 1 | 2 | 6 / 6 |
+| Unproven at 1,000 cap | 2,575 / 1,000 | 2,575 / 0 | 0 | 27 / 12 |
+
+`benchmarks/run.mjs` runs these acquisition regressions and saves their request
+counts and query-shape assertions in `merged-selection.stdout.txt`. Existing
+populated subprocess budgets remain unchanged at nine cold and eight expired or
+forced GitHub commands, with no warm commands. The selected query includes both
+metadata and supplemental connections. A synthetic partial supplemental failure
+retains metadata; a check-field failure fails closed. If supplemental error
+propagation nulls an entire alias, one metadata-only query retries the affected
+aliases. Healthy aliases are retained and the original supplemental failure
+remains visible. If schema validation rejects the combined query without data,
+one metadata-only query retries the selected batch and marks supplemental
+columns unavailable. Recovery failures fail closed.
+
+`src/testdata/merged/github-pr240-2026-10-22.json` records one live query through
+GitHub CLI 2.101.0 on October 22, 2026 EDT. It contains a one-row candidate page
+and selected PR 240, used to qualify the candidate, check and supplemental
+parsers against the actual GitHub transport. It contains public PR data and no
+credentials.
 
 ## Progressive output measurements
 
