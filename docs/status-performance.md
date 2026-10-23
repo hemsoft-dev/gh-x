@@ -112,7 +112,9 @@ metadata and supplemental connections. A synthetic partial supplemental failure
 retains metadata; a check-field failure fails closed. If supplemental error
 propagation nulls an entire alias, one metadata-only query retries the affected
 aliases. Healthy aliases are retained and the original supplemental failure
-remains visible. Recovery failures fail closed.
+remains visible. If schema validation rejects the combined query without data,
+one metadata-only query retries the selected batch and marks supplemental
+columns unavailable. Recovery failures fail closed.
 
 `src/testdata/merged/github-pr240-2026-10-22.json` records one live query through
 GitHub CLI 2.101.0 on October 22, 2026 EDT. It contains a one-row candidate page

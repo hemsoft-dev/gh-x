@@ -46,7 +46,7 @@ try {
         Object.assign(samples, result.samples);
     }
     const result = compare(samples, budgets, baseline.samples);
-    run("merged-selection", "go", ["test", "./src", "-run", "^(TestFetchRecentlyMergedPullRequestsExpandsUntilMergeOrderIsProven|TestMergedSelectionLargeAndCappedAcquisitions|TestMergedCombinedEvidenceAndPartialFailures)$", "-count=1", "-v"], 120_000);
+    run("merged-selection", "go", ["test", "./src", "-run", "^(TestFetchRecentlyMergedPullRequestsExpandsUntilMergeOrderIsProven|TestMergedSelectionLargeAndCappedAcquisitions|TestMergedCombinedEvidenceAndPartialFailures|TestMergedSchemaValidationPreservesRows|TestMergedRejectedBatchRecoveryIsBounded)$", "-count=1", "-v"], 120_000);
     const acquisitionRaw = run("status-acquisition", "go", ["test", "./src", "-run", "^TestStatusAcquisitionPerformance$", "-count=1", "-v"], 120_000);
     const acquisitionSamples = parseStatusAcquisition(acquisitionRaw);
     const acquisition = compareStatusAcquisition(acquisitionSamples, statusBudgets(root));

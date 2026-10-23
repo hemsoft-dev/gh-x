@@ -148,11 +148,8 @@ func fetchSelectedMergedBatch(client *mergedQueryClient, owner, name string, sel
 		fields += "\n" + prSupplementalFields
 	}
 	data, fetchErr := client.query(buildPullRequestBatchQuery(owner, name, numbers, fields))
-	if fetchErr != nil && !onlyMergedSupplementalErrors(data) {
-		return nil, prSupplementalData{}, fetchErr
-	}
 	supplementalData := data
-	data, recoveryErr := recoverMergedMetadata(client, owner, name, data, numbers)
+	data, recoveryErr := recoverMergedBatch(client, owner, name, data, numbers, supplemental, fetchErr)
 	if recoveryErr != nil {
 		return nil, prSupplementalData{}, recoveryErr
 	}

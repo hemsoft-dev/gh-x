@@ -70,6 +70,19 @@ func sameMergedCohort(expected, actual []pullRequest) bool {
 	return len(rows) == 0
 }
 
+// Validation failures can reject the entire combined query without an alias
+// path or data. Retry metadata once, preserving the original supplemental
+// payload/error at the caller. Metadata failures must still fail the batch.
+func recoverMergedBatch(client *mergedQueryClient, owner, name string, data []byte, numbers []int, supplemental bool, fetchErr error) ([]byte, error) {
+	if fetchErr != nil && !onlyMergedSupplementalErrors(data) {
+		if supplemental && !hasGraphQLDataEnvelope(data) {
+			return client.query(buildPullRequestBatchQuery(owner, name, numbers, mergedPRFields))
+		}
+		return nil, fetchErr
+	}
+	return recoverMergedMetadata(client, owner, name, data, numbers)
+}
+
 // A non-null supplemental field may null its parent PR alias. Retry only the
 // affected aliases with metadata/check fields, retaining the original payload
 // for supplemental parsing so unavailable evidence stays unavailable.
