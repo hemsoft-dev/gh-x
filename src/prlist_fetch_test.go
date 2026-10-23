@@ -64,38 +64,45 @@ func TestFetchRecentlyMergedPullRequestsExpandsUntilMergeOrderIsProven(t *testin
 			UpdatedAt: time.Date(2026, 10, 28-i, 0, 0, 0, 0, time.UTC),
 		})
 	}
-	secondPage := append([]pullRequest{}, firstPage...)
-	secondPage = append(secondPage,
-		pullRequest{Number: 3, MergedAt: time.Date(2026, 9, 11, 0, 0, 0, 0, time.UTC), UpdatedAt: time.Date(2026, 9, 11, 0, 0, 0, 0, time.UTC)},
-		pullRequest{Number: 4, MergedAt: time.Date(2025, 12, 1, 0, 0, 0, 0, time.UTC), UpdatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)},
-	)
-
-	calls := 0
+	secondPage := []pullRequest{
+		{Number: 3, MergedAt: time.Date(2026, 9, 11, 0, 0, 0, 0, time.UTC), UpdatedAt: time.Date(2026, 9, 11, 0, 0, 0, 0, time.UTC)},
+		{Number: 4, MergedAt: time.Date(2025, 12, 1, 0, 0, 0, 0, time.UTC), UpdatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)},
+	}
+	calls, candidateRows, enrichedRows := 0, 0, 0
 	ghExecFunc = func(args ...string) (bytes.Buffer, bytes.Buffer, error) {
 		calls++
 		command := strings.Join(args, " ")
-		var rows []pullRequest
-		switch {
-		case strings.Contains(command, "first: 25"):
-			rows = firstPage
-		case strings.Contains(command, "first: 50"):
-			rows = secondPage
-		default:
-			t.Fatalf("unexpected arguments: %s", command)
+		if strings.Contains(command, "pullRequest(number:") {
+			enrichedRows += len(mergedAliasPattern.FindAllStringSubmatch(command, -1))
+			return selectedMergedTestResponse(t, command, map[int]any{1: firstPage[0], 3: secondPage[0]}), bytes.Buffer{}, nil
 		}
+		if !strings.Contains(command, "nodes { number updatedAt mergedAt }") || strings.Contains(command, "latestReviews") || strings.Contains(command, "contexts") {
+			t.Fatal("candidate query contains heavy evidence")
+		}
+		rows := firstPage
+		next := true
+		if strings.Contains(command, `after: "page25"`) {
+			rows = secondPage
+			next = false
+		} else if !strings.Contains(command, "after: null") {
+			t.Fatalf("unexpected cursor: %s", command)
+		}
+		candidateRows += len(rows)
 		data, err := json.Marshal(rows)
 		if err != nil {
 			t.Fatal(err)
 		}
-		return *bytes.NewBufferString(fmt.Sprintf(`{"data":{"repository":{"pullRequests":{"nodes":%s,"pageInfo":{"hasNextPage":false}}}}}`, data)), bytes.Buffer{}, nil
+		return *bytes.NewBufferString(fmt.Sprintf(`{"data":{"repository":{"pullRequests":{"nodes":%s,"pageInfo":{"hasNextPage":%t,"endCursor":"page25"}}}}}`, data, next)), bytes.Buffer{}, nil
 	}
 
-	got, err := fetchRecentlyMergedPullRequests(listOptions{repo: "owner/repo", limit: 2, state: "merged", recentlyMerged: true})
+	acquisition, err := fetchMergedAcquisition(listOptions{repo: "owner/repo", limit: 2, state: "merged", recentlyMerged: true}, true)
+	got := acquisition.rows
 	if err != nil {
 		t.Fatal(err)
 	}
-	if calls != 2 {
-		t.Fatalf("fetch calls = %d, want 2", calls)
+	t.Logf("MERGED_REQUEST_BUDGET fixture=expanding requests=%d candidates=%d enriched=%d", calls, candidateRows, enrichedRows)
+	if calls != 3 || candidateRows != 27 || enrichedRows != 2 {
+		t.Fatalf("requests=%d candidate rows=%d enriched=%d, want3/27/2", calls, candidateRows, enrichedRows)
 	}
 	if len(got) != 2 || got[0].Number != 3 || got[1].Number != 1 {
 		t.Fatalf("recent merges = %#v, want #3 then #1", got)

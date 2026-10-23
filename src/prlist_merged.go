@@ -51,34 +51,8 @@ type mergedPRConnection struct {
 }
 
 func fetchMergedRepositoryPullRequests(options listOptions) ([]pullRequest, error) {
-	owner, name, err := resolveRepo(options.repo)
-	if err != nil {
-		return nil, err
-	}
-	host := repositoryTargetHost(options.repo)
-	client := mergedQueryClient{host: host}
-	var result []pullRequest
-	cursor := ""
-	for len(result) < options.limit {
-		page, err := fetchMergedPRPage(&client, owner, name, cursor, min(100, options.limit-len(result)))
-		if err != nil {
-			return nil, err
-		}
-		for _, node := range page.Nodes {
-			if err := completeMergedChecks(&client, &node); err != nil {
-				return nil, err
-			}
-			result = append(result, node.pullRequestRow())
-		}
-		if !page.PageInfo.HasNextPage {
-			return result, nil
-		}
-		if len(page.Nodes) == 0 || page.PageInfo.EndCursor == "" || page.PageInfo.EndCursor == cursor {
-			return nil, fmt.Errorf("merged pull request pagination did not advance")
-		}
-		cursor = page.PageInfo.EndCursor
-	}
-	return result, nil
+	acquisition, err := fetchMergedAcquisition(options, false)
+	return acquisition.rows, err
 }
 
 func fetchMergedPRPage(client *mergedQueryClient, owner, name, cursor string, limit int) (*mergedPRConnection, error) {
@@ -91,7 +65,7 @@ func fetchMergedPRPage(client *mergedQueryClient, owner, name, cursor string, li
     nodes { %s }
     pageInfo { hasNextPage endCursor }
   }
-} }`, owner, name, limit, after, mergedPRFields)
+} }`, owner, name, limit, after, "number updatedAt mergedAt")
 	data, err := client.query(query)
 	if err != nil {
 		return nil, err

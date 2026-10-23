@@ -438,6 +438,8 @@ func runFakeGH() int {
 		fixture = "issue-hierarchy.json"
 	case hasCommandPrefix(args, "api") && strings.Contains(strings.Join(args, " "), "pullRequest(number: 42)"):
 		fixture = "pr-supplemental.json"
+	case hasCommandPrefix(args, "api") && strings.Contains(strings.Join(args, " "), "pullRequest(number: 43)") && strings.Contains(strings.Join(args, " "), "latestReviews"):
+		fixture = "merged-pr-selected.json"
 	case hasCommandPrefix(args, "api") && strings.Contains(strings.Join(args, " "), "pullRequest(number: 43)"):
 		fixture = "merged-pr-supplemental.json"
 	case hasCommandPrefix(args, "api") && strings.Contains(strings.Join(args, " "), "pullRequests(states: MERGED"):

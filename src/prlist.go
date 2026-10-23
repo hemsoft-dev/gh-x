@@ -154,14 +154,13 @@ func executeList(options listOptions, stdout io.Writer, stderr io.Writer) error 
 }
 
 func fetchPullRequestList(options listOptions, now time.Time) (pullRequestListResult, error) {
-	pullRequests, err := fetchPullRequests(options)
+	pullRequests, supplemental, repoOwner, repoName, err := acquirePullRequestList(options)
 	if err != nil {
 		return pullRequestListResult{}, err
 	}
 	if options.web {
 		return pullRequestListResult{}, nil
 	}
-	supplemental, repoOwner, repoName := fetchSupplementalData(options.repo, pullRequests)
 	requiredByBranch, failedRequiredBranches := fetchRequiredChecksCached(repoOwner, repoName, pullRequests, options.requiredCache)
 	failedRequiredPRs := make(map[int]bool)
 	for _, pr := range pullRequests {
@@ -206,38 +205,7 @@ func fetchRawPullRequests(options listOptions) ([]pullRequest, error) {
 }
 
 func fetchRecentlyMergedPullRequests(options listOptions) ([]pullRequest, error) {
-	desired := options.limit
-	if desired > recentMergedCandidateLimit {
-		return nil, fmt.Errorf("recently merged pull request limit cannot exceed %d", recentMergedCandidateLimit)
-	}
-	candidateLimit := max(desired, recentMergedCandidateFloor)
-	for {
-		candidateOptions := options
-		candidateOptions.limit = candidateLimit
-		candidates, err := fetchMergedRepositoryPullRequests(candidateOptions)
-		if err != nil {
-			return nil, err
-		}
-		exhausted := len(candidates) < candidateLimit
-		oldestUpdate := time.Time{}
-		if len(candidates) > 0 {
-			oldestUpdate = candidates[len(candidates)-1].UpdatedAt
-		}
-		sort.SliceStable(candidates, func(i, j int) bool {
-			return candidates[i].MergedAt.After(candidates[j].MergedAt)
-		})
-		if len(candidates) < desired {
-			return candidates, nil
-		}
-		selected := candidates[:desired]
-		if exhausted || !oldestUpdate.After(selected[len(selected)-1].MergedAt) {
-			return selected, nil
-		}
-		if candidateLimit == recentMergedCandidateLimit {
-			return nil, fmt.Errorf("cannot determine the %d most recent merges from %d updated pull requests", desired, candidateLimit)
-		}
-		candidateLimit = min(candidateLimit*2, recentMergedCandidateLimit)
-	}
+	return fetchMergedRepositoryPullRequests(options)
 }
 
 // requiredChecksError turns failed required-check rules lookups into the
@@ -363,4 +331,17 @@ func buildListArgs(options listOptions) []string {
 	}
 
 	return arguments
+}
+
+func acquirePullRequestList(options listOptions) ([]pullRequest, prSupplementalData, string, string, error) {
+	if options.recentlyMerged && !options.web {
+		acquisition, err := fetchMergedAcquisition(options, true)
+		return acquisition.rows, acquisition.supplemental, acquisition.owner, acquisition.name, err
+	}
+	rows, err := fetchPullRequests(options)
+	if err != nil || options.web {
+		return rows, prSupplementalData{}, "", "", err
+	}
+	supplemental, owner, name := fetchSupplementalData(options.repo, rows)
+	return rows, supplemental, owner, name, nil
 }

@@ -321,20 +321,13 @@ func firstPartialFetchError(firstErr error, unavailable map[int]bool, requested 
 }
 
 func fetchPRSupplementalBatch(owner, name, host string, prNumbers []int) (map[int]prSupplementalInfo, map[int]bool, error) {
-	var queryParts []string
-	for _, num := range prNumbers {
-		queryParts = append(queryParts, fmt.Sprintf(
-			`pr%d: pullRequest(number: %d) { number headRefOid closingIssuesReferences(first: 100) { totalCount nodes { number url } } comments(last: 100) { totalCount nodes { body createdAt author { login __typename } } } reactions(content: THUMBS_UP, last: 100) { totalCount nodes { createdAt user { login __typename } } } reviewThreads(last: 100) { totalCount nodes { isResolved comments(first: 1) { nodes { author { login __typename } } } } } reviews(last: 100) { totalCount nodes { state body submittedAt commit { oid } author { login __typename } comments { totalCount } } } approvedReviews: latestOpinionatedReviews(last: 100) { totalCount pageInfo { hasPreviousPage } nodes { state submittedAt author { login __typename } } } }`,
-			num, num,
-		))
-	}
-
-	query := fmt.Sprintf(
-		`query { repository(owner: %q, name: %q) { %s } }`,
-		owner, name, strings.Join(queryParts, " "),
-	)
+	query := buildPullRequestBatchQuery(owner, name, prNumbers, prSupplementalFields)
 
 	data, err := fetchGraphQL(host, query)
+	return parseSupplementalBatch(data, err, prNumbers)
+}
+
+func parseSupplementalBatch(data []byte, err error, prNumbers []int) (map[int]prSupplementalInfo, map[int]bool, error) {
 	unavailable := unavailablePRNumbers(prNumbers, nil)
 	if data == nil {
 		return nil, unavailable, err
@@ -361,4 +354,14 @@ func unavailablePRNumbers(prNumbers []int, infos map[int]prSupplementalInfo) map
 		}
 	}
 	return unavailable
+}
+
+const prSupplementalFields = `number headRefOid closingIssuesReferences(first: 100) { totalCount nodes { number url } } comments(last: 100) { totalCount nodes { body createdAt author { login __typename } } } reactions(content: THUMBS_UP, last: 100) { totalCount nodes { createdAt user { login __typename } } } reviewThreads(last: 100) { totalCount nodes { isResolved comments(first: 1) { nodes { author { login __typename } } } } } reviews(last: 100) { totalCount nodes { state body submittedAt commit { oid } author { login __typename } comments { totalCount } } } approvedReviews: latestOpinionatedReviews(last: 100) { totalCount pageInfo { hasPreviousPage } nodes { state submittedAt author { login __typename } } }`
+
+func buildPullRequestBatchQuery(owner, name string, numbers []int, fields string) string {
+	parts := make([]string, 0, len(numbers))
+	for _, number := range numbers {
+		parts = append(parts, fmt.Sprintf("pr%d: pullRequest(number: %d) { %s }", number, number, fields))
+	}
+	return fmt.Sprintf("query { repository(owner: %q, name: %q) { %s } }", owner, name, strings.Join(parts, " "))
 }
