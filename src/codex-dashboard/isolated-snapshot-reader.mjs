@@ -24,6 +24,7 @@ export function createIsolatedSnapshotReader({ moduleUrl, factoryName, options =
 
     function spawnSlot() {
         const child = fork(new URL("./snapshot-reader-process.mjs", import.meta.url), [], {
+            windowsHide: true,
             stdio: ["ignore", "ignore", "ignore", "ipc"],
             execArgv: process.execArgv.filter(arg => arg === "--experimental-sqlite"),
         });
