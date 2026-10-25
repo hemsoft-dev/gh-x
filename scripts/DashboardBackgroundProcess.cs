@@ -36,6 +36,13 @@ namespace HemSoft
             public int ProcessId, ThreadId;
         }
 
+        [StructLayout(LayoutKind.Sequential)]
+        private struct StartupInfoEx
+        {
+            public StartupInfo Startup;
+            public IntPtr Attributes;
+        }
+
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         private static extern SafeFileHandle CreateFile(string path, uint access, uint share,
             ref SecurityAttributes attributes, uint disposition, uint flags, IntPtr template);
@@ -44,7 +51,20 @@ namespace HemSoft
         [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool CreateProcess(string application, StringBuilder command,
             IntPtr processAttributes, IntPtr threadAttributes, bool inheritHandles, uint flags,
-            IntPtr environment, string directory, ref StartupInfo startup, out ProcessInfo process);
+            IntPtr environment, string directory, ref StartupInfoEx startup, out ProcessInfo process);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool InitializeProcThreadAttributeList(IntPtr list, int count,
+            int flags, ref IntPtr size);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool UpdateProcThreadAttribute(IntPtr list, uint flags,
+            IntPtr attribute, IntPtr value, IntPtr size, IntPtr previous, IntPtr returnedSize);
+
+        [DllImport("kernel32.dll")]
+        private static extern void DeleteProcThreadAttributeList(IntPtr list);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern uint ResumeThread(IntPtr thread);
@@ -98,37 +118,62 @@ namespace HemSoft
             using (var output = OpenFile(stdout, 0x40000000, 2))
             using (var error = OpenFile(stderr, 0x40000000, 2))
             {
-                var startup = new StartupInfo();
-                startup.Size = Marshal.SizeOf(typeof(StartupInfo));
-                startup.Flags = 0x100; // STARTF_USESTDHANDLES; no shell or window-style fallback.
-                startup.Input = input.DangerousGetHandle();
-                startup.Output = output.DangerousGetHandle();
-                startup.Error = error.DangerousGetHandle();
-                ProcessInfo native;
-                // CREATE_NO_WINDOW | CREATE_SUSPENDED. No console is allocated.
-                if (!CreateProcess(executable, command, IntPtr.Zero, IntPtr.Zero, true,
-                    0x08000004, IntPtr.Zero, directory, ref startup, out native))
-                    throw new Win32Exception(Marshal.GetLastWin32Error(), "Windowless dashboard launch failed");
-                Process process = null;
+                var startup = new StartupInfoEx();
+                startup.Startup.Size = Marshal.SizeOf(typeof(StartupInfoEx));
+                startup.Startup.Flags = 0x100; // STARTF_USESTDHANDLES.
+                startup.Startup.Input = input.DangerousGetHandle();
+                startup.Startup.Output = output.DangerousGetHandle();
+                startup.Startup.Error = error.DangerousGetHandle();
+                IntPtr size = IntPtr.Zero;
+                InitializeProcThreadAttributeList(IntPtr.Zero, 1, 0, ref size);
+                if (size == IntPtr.Zero)
+                    throw new Win32Exception(Marshal.GetLastWin32Error(), "Cannot size dashboard handle list");
+                startup.Attributes = Marshal.AllocHGlobal(size);
+                IntPtr handles = IntPtr.Zero;
+                bool initialized = false;
                 try
                 {
-                    process = Process.GetProcessById(native.ProcessId);
-                    // Acquire the original process handle before it can run or exit.
-                    IntPtr handle = process.Handle;
-                    if (ResumeThread(native.Thread) == UInt32.MaxValue)
-                        throw new Win32Exception(Marshal.GetLastWin32Error(), "Cannot resume dashboard process");
-                    return process;
-                }
-                catch
-                {
-                    TerminateProcess(native.Process, 1);
-                    if (process != null) process.Dispose();
-                    throw;
+                    if (!InitializeProcThreadAttributeList(startup.Attributes, 1, 0, ref size))
+                        throw new Win32Exception(Marshal.GetLastWin32Error(), "Cannot initialize dashboard handle list");
+                    initialized = true;
+                    handles = Marshal.AllocHGlobal(3 * IntPtr.Size);
+                    Marshal.Copy(new[] { startup.Startup.Input, startup.Startup.Output, startup.Startup.Error }, 0, handles, 3);
+                    // Inherit only these streams, never the launcher's unrelated pipe writers.
+                    if (!UpdateProcThreadAttribute(startup.Attributes, 0, new IntPtr(0x20002), handles,
+                        new IntPtr(3 * IntPtr.Size), IntPtr.Zero, IntPtr.Zero))
+                        throw new Win32Exception(Marshal.GetLastWin32Error(), "Cannot restrict dashboard handle inheritance");
+                    ProcessInfo native;
+                    // CREATE_NO_WINDOW | CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT.
+                    if (!CreateProcess(executable, command, IntPtr.Zero, IntPtr.Zero, true,
+                        0x08080004, IntPtr.Zero, directory, ref startup, out native))
+                        throw new Win32Exception(Marshal.GetLastWin32Error(), "Windowless dashboard launch failed");
+                    Process process = null;
+                    try
+                    {
+                        process = Process.GetProcessById(native.ProcessId);
+                        // Acquire the original process handle before it can run or exit.
+                        IntPtr handle = process.Handle;
+                        if (ResumeThread(native.Thread) == UInt32.MaxValue)
+                            throw new Win32Exception(Marshal.GetLastWin32Error(), "Cannot resume dashboard process");
+                        return process;
+                    }
+                    catch
+                    {
+                        TerminateProcess(native.Process, 1);
+                        if (process != null) process.Dispose();
+                        throw;
+                    }
+                    finally
+                    {
+                        CloseHandle(native.Thread);
+                        CloseHandle(native.Process);
+                    }
                 }
                 finally
                 {
-                    CloseHandle(native.Thread);
-                    CloseHandle(native.Process);
+                    if (initialized) DeleteProcThreadAttributeList(startup.Attributes);
+                    if (handles != IntPtr.Zero) Marshal.FreeHGlobal(handles);
+                    Marshal.FreeHGlobal(startup.Attributes);
                 }
             }
         }

@@ -19,7 +19,12 @@ locations remain unchanged.
 [`CREATE_NO_WINDOW`](https://learn.microsoft.com/en-us/windows/win32/procthread/process-creation-flags).
 It passes arguments using Windows CRT quoting, supplies `NUL` for stdin, and
 gives Node inherited stdout/stderr file handles. Logging continues after the
-short-lived PowerShell launcher exits. The native process handle is acquired
+short-lived PowerShell launcher exits. A
+[`STARTUPINFOEX` handle list](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-updateprocthreadattribute) restricts
+inheritance to those files and `NUL`; unrelated launcher pipe writers are not
+passed to the persistent child. Otherwise a caller capturing launcher output
+could wait for pipe EOF until the persistent hub stops. The native process
+handle is acquired
 while the child is suspended, before it can exit; startup-timeout cleanup uses
 that original handle.
 
@@ -40,6 +45,16 @@ that combination requests `CREATE_NO_WINDOW`. Worker threads do not create
 processes. Imported provider extensions can contain their own implementation;
 the S4U desktop boundary applies to that descendant chain as well. Source tests
 do not certify arbitrary installed extension code or attribute a game crash.
+
+The Go CLI's captured status commands, `gh` API transport, and account-routing
+`git config`/`ssh -G` probes also set `CREATE_NO_WINDOW` and `HideWindow` on
+Windows. Each independently created console child needs its own flags; an
+ancestor's no-console setting is not inherited as a launch policy. Contexts,
+pipe handling, deadlines and error/exit semantics are retained. This covers the
+owned CLI metadata paths when invoked by background automation. It does not
+establish that a particular installed extension invokes them, or identify the
+ancestry of an observed window. Explicit editor and review-agent launch paths
+remain outside this metadata-launch contract.
 
 ## Preparation and containment
 
@@ -85,7 +100,24 @@ argument boundaries, working directory, readiness, reuse, log persistence,
 startup failures and timeout cleanup. It covers both the PowerShell 7 host and
 the existing Windows PowerShell 5.1 CI invocation. It rejects the legacy launch
 path before executing it, so a known unsafe version is never launched as a
-negative fixture. Linux qualifies source policy and argument quoting only.
+negative fixture. A real inheritable sentinel pipe detects unrestricted native
+handle inheritance without launching an unsafe console path. Captured launcher
+pipe EOF has a five-second deadline and must arrive while the ready probe is
+still alive; failures retain an owned handle for cleanup. Stage messages identify
+preparation, process exit and pipe-drain progress rather than waiting for the
+ten-minute CI job limit.
+For an offline Windows regression check, `-NativeSourcePath <immutable-source>`
+can select the previous no-console helper with unrestricted inheritance. Its
+sentinel-pipe assertion must fail before starting the persistent ready probe.
+The preflight still requires `CREATE_NO_WINDOW`; this does not execute the old
+hidden-only launcher.
+
+The Windows job also re-executes the Go console-subsystem test binary with no
+console, then uses the real status and `gh` transports to launch children. Both
+parent and children must report `GetConsoleWindow()==0`; the test checks argument
+boundaries, stdin, captured streams and nonzero exit diagnostics. Existing
+cancellation tests run in that job as well. Linux qualifies source policy,
+argument quoting and portable transport behavior only.
 Reader tests inspect the actual fork options and then exercise the real child.
 
 These fixtures never register real tasks or read personal dashboard data.
