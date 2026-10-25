@@ -82,6 +82,7 @@ func main() {
         @{ Name = 'human task extra action'; Existing = 'extra-action'; Error = 'Scheduled task'; Calls = 0 },
         @{ Name = 'human task Command text'; Existing = 'command-text'; Error = 'Scheduled task'; Calls = 0 },
         @{ Name = 'human task encoded command'; Existing = 'encoded-command'; Error = 'Scheduled task'; Calls = 0 },
+        @{ Name = 'disabled owned task stays contained'; Existing = 'owned-disabled'; Error = 'disabled.*nothing was changed'; Calls = 0 },
         @{ Name = 'human HTTPS mount'; Collision = 'https'; Error = 'HTTPS.*already'; Calls = 3 },
         @{ Name = 'HTTPS app capabilities'; Collision = 'https-caps'; Error = 'HTTPS.*already'; Calls = 3 },
         @{ Name = 'false foreground Funnel'; Collision = 'foreground-funnel-false'; Success = $true; Https = $true; Calls = 5; Registered = 1 },
@@ -101,6 +102,8 @@ func main() {
         @{ Name = 'timeout native diagnostic'; Reply = 'https'; Delay = 31000; NativeError = 'fixture pre-timeout diagnostic'; Error = 'HTTPS Serve.*timed out.*completion is unverified'; Calls = 4; Registered = 1 },
         @{ Name = 'success first host'; Success = $true; Calls = 5; Registered = 1; Https = $true },
         @{ Name = 'success second host'; DNS = 'second-device.tailfixture.ts.net.'; Success = $true; Calls = 5; Registered = 1; Https = $true },
+        @{ Name = 'healthy hub is not started again'; Healthy = $true; Success = $true; Calls = 5; Registered = 1; Https = $true },
+        @{ Name = 'noninteractive task start failure'; StartFailure = $true; Error = 'fixture task start failure'; Calls = 3; Registered = 1 },
         @{ Name = 'same owned task and routes'; Existing = 'owned'; Collision = 'owned'; Success = $true; Calls = 5; Registered = 1; Https = $true }
     )
     if ($CaseName) {
@@ -112,9 +115,10 @@ func main() {
         New-Item -ItemType Directory -Path $folder | Out-Null
         Copy-Item $InstallerPath (Join-Path $folder 'install-dashboard-hub.ps1')
         @'
-param([int]$Port, [switch]$NoBrowser)
+param([int]$Port, [switch]$NoBrowser, [switch]$Prepare)
 if (-not $NoBrowser -or $Port -ne 4765) { throw 'Unexpected launcher arguments' }
-'launcher' | Set-Content (Join-Path $PSScriptRoot 'launcher.log')
+if ($Prepare) { 'prepared' | Set-Content (Join-Path $PSScriptRoot 'prepare.log'); return }
+throw 'Installer must not launch the hub in its interactive session'
 '@ | Set-Content (Join-Path $folder 'run-dashboard-hub.ps1') -Encoding utf8
         $dns = if ($case.ContainsKey('DNS')) { $case.DNS } else { 'first-device.tailfixture.ts.net' }
         $ip = if ($case.ContainsKey('IP')) { $case.IP } else { '100.100.100.100' }
@@ -167,10 +171,10 @@ if (-not $NoBrowser -or $Port -ne 4765) { throw 'Unexpected launcher arguments' 
             if ($case.Existing -eq 'command-text') { $arguments = "-Command Write-Output 'placeholder -File `"$path`" -Port 4765 -NoBrowser'" }
             if ($case.Existing -eq 'encoded-command') { $arguments = "-EncodedCommand ZQBjAGgAbwA= -File `"$path`"" }
             $action = @{ Execute = $powerShell; Arguments = $arguments }
-            $existing = @{ Actions = @($action); Principal = @{ UserId = $user } }
+            $existing = @{ Actions = @($action); Principal = @{ UserId = $user }; Settings = @{ Enabled = ($case.Existing -ne 'owned-disabled') }; State = $(if ($case.Existing -eq 'owned-disabled') { 'Disabled' } else { 'Ready' }) }
             if ($case.Existing -eq 'extra-action') { $existing.Actions += @{ Execute = 'human.exe'; Arguments = '' } }
         }
-        @{ Native = $native; PowerShell = $powerShell; ExistingTask = $existing } | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $folder 'wrapper.json') -Encoding utf8
+        @{ Native = $native; PowerShell = $powerShell; ExistingTask = $existing; Healthy = ($case.ContainsKey('Healthy') -and $case.Healthy); StartFailure = ($case.ContainsKey('StartFailure') -and $case.StartFailure) } | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $folder 'wrapper.json') -Encoding utf8
         @'
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -191,11 +195,25 @@ function Get-Command {
 function Get-ScheduledTask { param($TaskName, $ErrorAction) return $global:fixtureConfig.ExistingTask }
 function New-ScheduledTaskAction { param($Execute, $Argument, $WorkingDirectory) return @{ Execute = $Execute; Arguments = $Argument; WorkingDirectory = $WorkingDirectory } }
 function New-ScheduledTaskTrigger { param([switch]$AtLogOn, $User) return @{ User = $User } }
-function New-ScheduledTaskPrincipal { param($UserId, $LogonType, $RunLevel) return @{ UserId = $UserId } }
+function New-ScheduledTaskPrincipal { param($UserId, $LogonType, $RunLevel) return @{ UserId = $UserId; LogonType = $LogonType; RunLevel = $RunLevel } }
 function New-ScheduledTaskSettingsSet { param([switch]$AllowStartIfOnBatteries, [switch]$DontStopIfGoingOnBatteries, $ExecutionTimeLimit, $RestartCount, $RestartInterval) return @{ Fixture = $true } }
 function Register-ScheduledTask {
     param($TaskName, $Action, $Trigger, $Principal, $Settings, $Description, [switch]$Force)
     @{ TaskName = $TaskName; Action = $Action; Principal = $Principal } | ConvertTo-Json -Depth 8 -Compress | Add-Content (Join-Path $PSScriptRoot 'scheduler.jsonl')
+}
+function Start-ScheduledTask {
+    param($TaskName)
+    if ($global:fixtureConfig.Healthy) { throw 'Healthy hub must not be started again' }
+    if ($global:fixtureConfig.StartFailure) { throw 'fixture task start failure' }
+    if (-not (Test-Path (Join-Path $PSScriptRoot 'prepare.log'))) { throw 'Task used before native preparation' }
+    $task = Get-Content (Join-Path $PSScriptRoot 'scheduler.jsonl') | Select-Object -Last 1 | ConvertFrom-Json
+    if ($task.Principal.LogonType -ne 'S4U' -or $task.TaskName -ne $TaskName) { throw 'Unsafe task start' }
+    'started' | Set-Content (Join-Path $PSScriptRoot 'launcher.log')
+}
+function Invoke-RestMethod {
+    param($Method, $Uri, $TimeoutSec)
+    if ($Uri -ne 'http://127.0.0.1:4765/api/health') { throw 'Unexpected readiness target' }
+    return @{ ready = ($global:fixtureConfig.Healthy -or (Test-Path (Join-Path $PSScriptRoot 'launcher.log'))); service = 'cli-dashboard-hub' }
 }
 try { & (Join-Path $PSScriptRoot 'install-dashboard-hub.ps1'); exit 0 }
 catch { [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false); [Console]::Error.WriteLine($_.Exception.Message); exit 1 }
@@ -226,6 +244,12 @@ catch { [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false); [Console]:
             if ($case.ContainsKey('NativeError')) { Assert-Test ($errorText.Contains($case.NativeError)) 'Native diagnostic bytes were lost or misdecoded' }
             Assert-Test ($calls.Count -eq $case.Calls) "Expected $($case.Calls) native calls, got $($calls.Count)"
             Assert-Test ($registrations.Count -eq $expectedRegistrations) 'Scheduler mutation count differs'
+            foreach ($registration in $registrations) {
+                $task = $registration | ConvertFrom-Json
+                Assert-Test ($task.Principal.LogonType -eq 'S4U') 'Background task must use a noninteractive S4U principal'
+                Assert-Test ($task.Principal.UserId -eq 'FIXTUREDOMAIN\fixture-user' -and $task.Principal.RunLevel -eq 'Limited') 'Task changed its user or privilege level'
+                Assert-Test ($task.Action.Arguments -match '-NonInteractive' -and $task.Action.Arguments -match '-NoBrowser') 'Background task must prohibit prompting and browser launch'
+            }
             Assert-Test ($output -notmatch 'desktop-phubt5b') 'Hard-coded hostname survived'
             $expectedHttps = $case.ContainsKey('Https') -and $case.Https
             Assert-Test (($output -match 'Published privately at:') -eq $expectedHttps) 'HTTPS success claim does not match confirmed operation'
@@ -244,7 +268,10 @@ catch { [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false); [Console]:
                 Assert-Test (($calls[-1].Arguments -join ' ') -eq 'serve --bg --yes --tcp=80 tcp://127.0.0.1:4765') 'TCP operation is not narrowly scoped'
             }
             if ($case.Name -eq 'TCP failure after HTTPS') { Assert-Test ($errorText -match 'Partial setup.*HTTPS.*completed') 'Partial HTTPS completion not reported' }
-            if ($expectedRegistrations -eq 0) { Assert-Test (-not (Test-Path (Join-Path $folder 'launcher.log'))) 'Hub started before preflight failed' }
+            if ($expectedRegistrations -eq 0) {
+                Assert-Test (-not (Test-Path (Join-Path $folder 'launcher.log'))) 'Hub started before preflight failed'
+                Assert-Test (-not (Test-Path (Join-Path $folder 'prepare.log'))) 'Native preparation ran before preflight failed'
+            }
             $passed++
             Write-Host "PASS $($case.Name)"
         } catch {
@@ -256,6 +283,12 @@ catch { [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false); [Console]:
     }
     if ($failures.Count) { throw "Installer tests failed: $($failures.Count)/$($cases.Count).`n$($failures -join "`n")" }
     Write-Host "Installer tests passed: $passed/$($cases.Count), native doubles and scheduler mocks only."
+    if (-not $CaseName) {
+        & (Join-Path $PSScriptRoot 'test-dashboard-launch.ps1')
+        if ($InstallerPowerShell) {
+            & (Join-Path $PSScriptRoot 'test-dashboard-launch.ps1') -LauncherPowerShell $InstallerPowerShell
+        }
+    }
 } finally {
     Remove-Item -LiteralPath $fixture -Recurse -Force
 }

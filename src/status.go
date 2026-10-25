@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -449,7 +448,7 @@ func resolveStatusRepository(colorEnabled bool) (string, string) {
 var statusCommandFunc = runStatusCommand
 
 func runStatusCommand(name string, args ...string) (string, error) {
-	cmd := exec.CommandContext(commandContext, name, args...)
+	cmd := newCapturedCommand(commandContext, name, args...)
 	cmd.WaitDelay = githubCommandWaitDelay
 	output, err := cmd.CombinedOutput()
 	if err != nil {

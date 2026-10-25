@@ -65,7 +65,7 @@ func runGHCmdRaw(inv ghInvocation) (bytes.Buffer, bytes.Buffer, error) {
 			return bytes.Buffer{}, bytes.Buffer{}, fmt.Errorf("gh CLI not found in PATH")
 		}
 	}
-	cmd := exec.CommandContext(ctx, path, inv.Args...)
+	cmd := newCapturedCommand(ctx, path, inv.Args...)
 	cmd.WaitDelay = githubCommandWaitDelay
 	if len(inv.Stdin) > 0 {
 		cmd.Stdin = bytes.NewReader(inv.Stdin)
@@ -360,7 +360,7 @@ func cachedRemoteTargetHost(ctx context.Context) string {
 
 // defaultGitRemoteURL reads the origin remote of the current repository.
 func defaultGitRemoteURL(ctx context.Context) string {
-	cmd := exec.CommandContext(ctx, "git", "config", "--get", "remote.origin.url")
+	cmd := newCapturedCommand(ctx, "git", "config", "--get", "remote.origin.url")
 	cmd.WaitDelay = githubCommandWaitDelay
 	out, err := cmd.Output()
 	if err != nil {
@@ -516,7 +516,7 @@ func defaultSSHConfigHost(ctx context.Context, host string) string {
 }
 
 func newSSHConfigCommand(ctx context.Context, host string) *exec.Cmd {
-	cmd := exec.CommandContext(ctx, "ssh", "-G", "--", host)
+	cmd := newCapturedCommand(ctx, "ssh", "-G", "--", host)
 	cmd.WaitDelay = sshConfigWaitDelay
 	return cmd
 }

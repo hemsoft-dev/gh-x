@@ -954,6 +954,12 @@ succeeds. Use the printed HTTPS URL from another tailnet device, or the printed
 HTTP fallback when that client cannot resolve MagicDNS. Neither route is
 exposed to the LAN or public internet.
 
+The task uses the same user's limited, noninteractive S4U logon. The installer
+starts the hub through that task, and the native launcher suppresses console
+creation for Node. Disabled tasks are preserved: installation refuses to update
+them. See the [background launch contract](docs/dashboard-background-launch.md)
+for preparation, descendant handling, S4U access limits and deployment proof.
+
 Each Tailscale operation must succeed within 30 seconds. A failed command names
 the operation and exit code. A timeout reports unverified completion and keeps
 captured stderr for diagnosis. If HTTPS succeeds but TCP fails, installation

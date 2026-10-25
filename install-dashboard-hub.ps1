@@ -110,6 +110,9 @@ if ($existingTask) {
     if (-not $owned) {
         throw "Scheduled task '$TaskName' already exists and is not this user's exact dashboard launcher. Choose another TaskName; nothing was changed."
     }
+    if ($existingTask.State -eq 'Disabled' -or -not $existingTask.Settings.Enabled) {
+        throw "Scheduled task '$TaskName' is disabled; nothing was changed. Preserve containment until its owner reviews deployment safety."
+    }
 }
 
 $statusOutput = Invoke-Tailscale 'device status' @('status', '--json')
@@ -198,13 +201,13 @@ if ($null -ne $handlers) {
     }
 }
 
-& $launcherPath -Port $Port -NoBrowser
+& $launcherPath -Port $Port -NoBrowser -Prepare
 $action = New-ScheduledTaskAction `
     -Execute $powerShellPath `
-    -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$launcherPath`" -Port $Port -NoBrowser" `
+    -Argument "-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$launcherPath`" -Port $Port -NoBrowser" `
     -WorkingDirectory $repositoryRoot
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $userId
-$principal = New-ScheduledTaskPrincipal -UserId $userId -LogonType Interactive -RunLevel Limited
+$principal = New-ScheduledTaskPrincipal -UserId $userId -LogonType S4U -RunLevel Limited
 $settings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries `
@@ -215,6 +218,23 @@ Register-ScheduledTask `
     -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings `
     -Description "Starts the loopback-only Codex CLI and Copilot CLI dashboard hub." -Force | Out-Null
 Write-Host "Installed scheduled task: $TaskName"
+
+function Test-HubReady {
+    try {
+        $health = Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:$Port/api/health" -TimeoutSec 1
+        return $health.ready -eq $true -and $health.service -eq 'cli-dashboard-hub'
+    } catch { return $false }
+}
+# Start through the S4U task, never as a child of the interactive installer.
+# An already healthy service is reused without touching its process.
+if (-not (Test-HubReady)) {
+    Start-ScheduledTask -TaskName $TaskName
+    $deadline = [DateTime]::UtcNow.AddSeconds(15)
+    while (-not (Test-HubReady)) {
+        if ([DateTime]::UtcNow -ge $deadline) { throw 'Noninteractive dashboard task did not become ready; Serve was not changed.' }
+        Start-Sleep -Milliseconds 100
+    }
+}
 
 $httpsCompleted = $false
 try {

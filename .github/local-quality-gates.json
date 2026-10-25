@@ -37,6 +37,7 @@
   "hosted": [
     { "step": "windows-installer/Test Windows standalone launcher", "reason": "Requires Node from .node-version and PowerShell on hosted Windows. The local dashboard suite executes this lifecycle test on Windows, but Linux skips it and cannot qualify hosted startup/reuse." },
     { "step": "windows-installer/Test Windows PowerShell installer", "reason": "Requires the hosted Windows PowerShell 5.1 runtime; a Linux local audit cannot qualify it. The same offline fixtures also run locally under Windows when available." },
+    { "step": "windows-installer/Test captured CLI descendants without a console", "reason": "Requires Windows console-subsystem processes and GetConsoleWindow; Linux can cross-build the regression but cannot qualify native console allocation." },
     { "step": "security-analysis/Initialize CodeQL", "reason": "GitHub-hosted CodeQL setup; local audit never uploads source or security results." },
     { "step": "security-analysis/Analyze with CodeQL", "reason": "Require the current-revision GitHub CodeQL checks; not qualified by local success." },
     { "step": "dependency-review/Review dependency changes", "reason": "Requires a GitHub pull-request dependency diff and the Dependency Review Action." },

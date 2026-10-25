@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import childProcess from "node:child_process";
+import { syncBuiltinESMExports } from "node:module";
 import { once } from "node:events";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -13,6 +15,22 @@ import { hasRunningProcessState, isProcessRunning, readProcessStartTime } from "
 import { createSnapshotWorker, SnapshotBusyError } from "./snapshot-worker.mjs";
 import { createDashboardServer } from "./dashboard-server.mjs";
 import { createDashboardHub } from "../dashboard-hub/hub-server.mjs";
+
+test("isolated reader forks prohibit Windows console creation", async t => {
+    const original = childProcess.fork;
+    let calls = 0;
+    t.mock.method(childProcess, "fork", (entry, args, options) => {
+        calls++;
+        assert.equal(options.windowsHide, true);
+        assert.deepEqual(options.stdio, ["ignore", "ignore", "ignore", "ipc"]);
+        return original(entry, args, options);
+    });
+    syncBuiltinESMExports();
+    t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+    const { reader } = await fixture(t);
+    assert.equal((await reader({})).available, true);
+    assert.equal(calls, 1);
+});
 
 test("process liveness treats Linux zombies and dead states as terminated", async () => {
     assert.equal(hasRunningProcessState("123 (node worker) R 1 0"), true);
