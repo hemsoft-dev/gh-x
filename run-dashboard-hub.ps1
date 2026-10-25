@@ -18,7 +18,10 @@ $controlDirectory = [IO.Path]::GetFullPath($ControlDirectory)
 $controlPath = Join-Path $controlDirectory "control.json"
 $localUrl = "http://127.0.0.1:$Port/"
 $nativeSource = Join-Path $repositoryRoot 'scripts\DashboardBackgroundProcess.cs'
-$nativeHash = (Get-FileHash -LiteralPath $nativeSource -Algorithm SHA256).Hash
+$sha = [Security.Cryptography.SHA256]::Create()
+try {
+    $nativeHash = [BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes($nativeSource))).Replace('-', '')
+} finally { $sha.Dispose() }
 $nativeAssembly = Join-Path $controlDirectory "launcher-$nativeHash.dll"
 
 if ($Prepare) {

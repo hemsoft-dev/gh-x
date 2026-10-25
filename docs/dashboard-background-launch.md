@@ -20,13 +20,15 @@ locations remain unchanged.
 It passes arguments using Windows CRT quoting, supplies `NUL` for stdin, and
 gives Node inherited stdout/stderr file handles. Logging continues after the
 short-lived PowerShell launcher exits. A
-[`STARTUPINFOEX` handle list](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-updateprocthreadattribute) restricts
+[`STARTUPINFOEX` handle list][handle-list] restricts
 inheritance to those files and `NUL`; unrelated launcher pipe writers are not
 passed to the persistent child. Otherwise a caller capturing launcher output
 could wait for pipe EOF until the persistent hub stops. The native process
 handle is acquired
 while the child is suspended, before it can exit; startup-timeout cleanup uses
 that original handle.
+
+[handle-list]: https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-updateprocthreadattribute
 
 The PowerShell launcher loads a prepared assembly instead of using `Add-Type`
 to compile source during background startup. Windows PowerShell 5.1's
@@ -37,6 +39,9 @@ runs the installed .NET Framework compiler through `ProcessStartInfo` with
 It has a 30-second deadline. Complete assemblies are published under a name
 containing the source SHA256 in the existing control directory. No compiler is
 invoked by ordinary background startup; missing preparation fails explicitly.
+Source hashing uses the .NET SHA256 API and does not require `Get-FileHash`
+module discovery. The fixture exercises the real preparation branch with that
+cmdlet unavailable and verifies a known source hash and assembly filename.
 
 The hub's owned snapshot-reader forks set `windowsHide: true` with ignored
 standard streams and an IPC pipe. In the
@@ -111,6 +116,13 @@ can select the previous no-console helper with unrestricted inheritance. Its
 sentinel-pipe assertion must fail before starting the persistent ready probe.
 The preflight still requires `CREATE_NO_WINDOW`; this does not execute the old
 hidden-only launcher.
+
+The .NET-spawned fixture hosts remove inherited `PSModulePath` from their child
+environment so each runtime constructs its own defaults. This avoids
+[PowerShell 7 module paths shadowing Windows PowerShell modules][module-path]
+without changing the user's environment or installed task.
+
+[module-path]: https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_psmodulepath
 
 The Windows job also re-executes the Go console-subsystem test binary with no
 console, then uses the real status and `gh` transports to launch children. Both

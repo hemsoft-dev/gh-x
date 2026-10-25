@@ -21,6 +21,33 @@ $preparation = Get-Content (Join-Path $repository 'scripts/prepare-dashboard-lau
 Assert-Launch ($preparation -match '\$start.CreateNoWindow = \$true' -and $preparation -match '\$start.UseShellExecute = \$false') 'Preparation must suppress compiler console creation'
 $nativeSource = Get-Content -LiteralPath $NativeSourcePath -Raw
 Assert-Launch ($nativeSource -match '0x080[08]0004, IntPtr.Zero, directory') 'Native launch must set CREATE_NO_WINDOW before any probe'
+
+# Exercise the actual preparation branch without depending on module discovery.
+# No native process, service, scheduler or personal control directory is used.
+$hashFixture = Join-Path ([IO.Path]::GetTempPath()) "gh-x launch hash $([guid]::NewGuid().ToString('N'))"
+try {
+    New-Item -ItemType Directory -Path (Join-Path $hashFixture 'scripts') -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $hashFixture 'control') | Out-Null
+    Copy-Item $LauncherPath (Join-Path $hashFixture 'run-dashboard-hub.ps1')
+    [IO.File]::WriteAllBytes((Join-Path $hashFixture 'scripts/DashboardBackgroundProcess.cs'), [Text.Encoding]::ASCII.GetBytes('abc'))
+    @'
+param($SourcePath, $AssemblyPath, $ExpectedSourceHash)
+$expected = 'BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD'
+if ([IO.File]::ReadAllText($SourcePath) -cne 'abc' -or $ExpectedSourceHash -cne $expected -or
+    [IO.Path]::GetFileName($AssemblyPath) -cne "launcher-$expected.dll") { throw 'Source hash or assembly identity changed' }
+[IO.File]::WriteAllText((Join-Path ([IO.Path]::GetDirectoryName($AssemblyPath)) 'hash-verified'), 'verified')
+'@ | Set-Content (Join-Path $hashFixture 'scripts/prepare-dashboard-launcher.ps1') -Encoding utf8
+    & {
+        function Get-FileHash { throw 'Fixture: Get-FileHash is unavailable' }
+        & (Join-Path $hashFixture 'run-dashboard-hub.ps1') -Prepare -NoBrowser `
+            -NodeCommand 'gh-x-fixture-must-not-start' -ControlDirectory (Join-Path $hashFixture 'control')
+    }
+    Assert-Launch (Test-Path (Join-Path $hashFixture 'control/hash-verified')) 'Actual launcher did not prepare the expected source hash'
+    Write-Host 'PASS actual launcher preparation hashes immutable source without Get-FileHash'
+} finally {
+    if (Test-Path $hashFixture) { Remove-Item -LiteralPath $hashFixture -Recurse -Force }
+}
+
 if (-not ('HemSoft.DashboardBackgroundProcess' -as [type])) {
     Add-Type -Path $NativeSourcePath
 }
@@ -108,6 +135,9 @@ func main() {
         $control = Join-Path $controlDirectory 'control.json'
         $start = [Diagnostics.ProcessStartInfo]::new($LauncherPowerShell)
         $start.UseShellExecute = $false
+        # Direct .NET startup bypasses PowerShell's WinPSModulePath handling.
+        # Let the target host construct its own default module search path.
+        $null = $start.Environment.Remove('PSModulePath')
         $start.CreateNoWindow = $true
         $start.RedirectStandardOutput = $true
         $start.RedirectStandardError = $true
