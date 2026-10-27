@@ -13,6 +13,12 @@ and this project uses semantic versioning.
 
 ## [Unreleased]
 
+## [0.23.6] - 2026-10-27
+
+- chore(deps): bump the github-actions group with 3 updates (#253)
+- chore(deps): bump github.com/cli/go-gh/v2 (#252)
+- fix: prepare changelog PRs before release publication (#251)
+
 ## [0.23.5] - 2026-10-25
 
 - fix: keep dashboard background launches off the interactive desktop (#249)
@@ -409,7 +415,8 @@ the published releases above.
 - Dynamic or unreadable workflow definitions now display `unknown` in the
   trigger column instead of failing the list command.
 
-[Unreleased]: https://github.com/hemsoft-dev/gh-x/compare/v0.23.5...HEAD
+[Unreleased]: https://github.com/hemsoft-dev/gh-x/compare/v0.23.6...HEAD
+[0.23.6]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.6
 [0.23.5]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.5
 [0.23.4]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.4
 [0.23.3]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.3
