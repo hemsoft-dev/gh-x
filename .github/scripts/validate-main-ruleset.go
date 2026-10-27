@@ -340,15 +340,28 @@ func validateExistingRelease(releaseJob workflowJob) {
 	require(strings.Contains(existingNotes.Run, `echo "found=false" >> "$GITHUB_OUTPUT"`), "a confirmed missing release must publish a not-found result")
 	require(strings.Contains(existingNotes.Run, `exit 1`), "non-404 release lookup failures must fail reconciliation")
 
-	changelog := namedStep(releaseJob, "Update changelog")
+	changelog := namedStep(releaseJob, "Prepare candidate changelog PR before publication")
 	require(changelog.If == "steps.check.outputs.skip == 'false' || steps.existing_release.outputs.found == 'true'", "changelog update must run for new and confirmed existing releases")
 	require(changelog.Env["RELEASE_TAG"] == "${{ steps.version.outputs.tag || steps.check.outputs.release_tag }}", "changelog update must receive the new or resumed release tag")
 	require(strings.Contains(changelog.Run, "git switch --detach origin/main"), "changelog reconciliation must start from current main")
 	require(strings.Contains(changelog.Run, `go run "$RUNNER_TEMP/release-plan.go" changelog`), "release workflow must use the trusted changelog updater")
+	validateChangelogPreparation(releaseJob, changelog)
+}
+
+func validateChangelogPreparation(job workflowJob, prepare workflowStep) {
+	require(prepare.ID == "changelog_pr" && !prepare.ContinueOnError, "changelog preparation must expose its exact head and fail closed")
+	require(prepare.Env["GH_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}" && prepare.Env["CODEX_REVIEW_TOKEN"] == "", "creation must use the existing job token only")
+	require(prepare.Env["RELEASE_PUBLISHED"] == "${{ steps.existing_release.outputs.found == 'true' }}", "candidate must distinguish planned and published notes")
+	require(prepare.Env["RELEASE_SHA"] == "${{ github.event.workflow_run.head_sha }}", "preparation must retain the validated release source")
+	require(strings.Contains(prepare.Run, `bash "$RUNNER_TEMP/prepare-changelog-pr.sh"`), "preparation must invoke the trusted candidate helper")
+	require(strings.HasSuffix(strings.TrimSpace(prepare.Run), `git switch --detach "$RELEASE_SHA"`), "builds must restore the validated source after candidate preparation")
+	require(stepIndex(job, "Generate release notes") < stepIndex(job, prepare.Name), "planned notes must exist before preparation")
+	require(stepIndex(job, prepare.Name) < stepIndex(job, "Build cross-platform binaries"), "candidate creation must precede build and irreversible publication")
 }
 
 func validateChangelogDelivery(releaseJob workflowJob, authoritativeRunContent string) {
 	mergeChangelog := namedStep(releaseJob, "Queue guarded changelog auto-merge and await completion")
+	validatePreparedChangelogDelivery(releaseJob, mergeChangelog)
 	require(mergeChangelog.If == "steps.check.outputs.skip == 'false' || steps.existing_release.outputs.found == 'true'", "changelog pull request must run for new and confirmed existing releases")
 	require(mergeChangelog.Env["RELEASE_TAG"] == "${{ steps.version.outputs.tag || steps.check.outputs.release_tag }}", "changelog pull request must receive the new or resumed release tag")
 	require(mergeChangelog.Env["RELEASE_SHA"] == "${{ github.event.workflow_run.head_sha }}", "changelog reconciliation must retain the released commit SHA")
@@ -363,23 +376,35 @@ func validateChangelogDelivery(releaseJob workflowJob, authoritativeRunContent s
 		"authoritative changelog run must contain exactly one successful Quality Gate",
 	)
 	require(strings.Contains(authoritativeRunContent, `PR $pr_url expected head $expected_head authoritative run $run_id`) && strings.Contains(authoritativeRunContent, `Inspect $run_url.`), "authoritative validation failures must identify and link the pull request, head, and run")
-	require(strings.Contains(mergeChangelog.Run, `branch="chore/changelog-${RELEASE_TAG#v}"`), "release retries must reuse a deterministic changelog branch")
-	require(strings.Contains(mergeChangelog.Run, `gh pr list --base main --head "$branch" --state open`), "release retries must reuse an existing open changelog pull request")
-	require(strings.Contains(mergeChangelog.Run, `--jq '.[0].url // empty'`), "a missing changelog pull request must produce an empty lookup")
-	require(strings.Contains(mergeChangelog.Run, `git push --force-with-lease=`), "release retries must safely refresh the existing changelog branch")
+	validateCandidateReuse(loadText(".github/scripts/prepare-changelog-pr.sh"))
 	require(strings.Contains(mergeChangelog.Run, "go run ./.github/scripts/changelog-merge enable"), "changelog update must use guarded native auto-merge and await completion")
 	require(strings.Contains(mergeChangelog.Run, `EXPECTED_HEAD="$head_sha"`), "changelog merge must pin its expected head")
 	require(strings.Contains(mergeChangelog.Run, `git push --force-with-lease="refs/heads/${branch}:${head_sha}" origin ":refs/heads/${branch}"`), "changelog cleanup must delete only the merged head")
 	require(strings.Contains(mergeChangelog.Run, "gh workflow run ci.yml --ref main"), "the bot merge must dispatch main CI for any intervening product changes")
-	noDiffStart := strings.Index(mergeChangelog.Run, "if git diff --quiet -- CHANGELOG.md; then")
+	noDiffStart := strings.Index(mergeChangelog.Run, `if [[ -z "$pr_url" ]]; then`)
 	require(noDiffStart >= 0, "release retries must recognize an already-current changelog")
-	noDiffEnd := strings.Index(mergeChangelog.Run[noDiffStart:], "\nfi\n\nbranch=")
+	noDiffEnd := strings.Index(mergeChangelog.Run[noDiffStart:], "# Only successful publication")
 	require(noDiffEnd >= 0, "already-current changelog handling must terminate its conditional")
 	noDiffBranch := mergeChangelog.Run[noDiffStart : noDiffStart+noDiffEnd]
 	require(strings.Contains(noDiffBranch, `if [[ "$(git rev-parse HEAD)" != "$RELEASE_SHA" ]]; then`), "already-current changelog retries must dispatch only when main advanced past the released commit")
 	noDiffDispatch := strings.Index(noDiffBranch, "gh workflow run ci.yml --ref main")
 	noDiffExit := strings.Index(noDiffBranch, "exit 0")
 	require(noDiffDispatch >= 0 && noDiffExit >= 0 && noDiffDispatch < noDiffExit, "already-current changelog retries must dispatch main CI before returning")
+}
+
+func validatePreparedChangelogDelivery(releaseJob workflowJob, mergeChangelog workflowStep) {
+	require(mergeChangelog.Env["EXPECTED_HEAD"] == "${{ steps.changelog_pr.outputs.head_sha }}", "review and merge must retain the prepared candidate SHA")
+	require(mergeChangelog.Env["CHANGELOG_PR_URL"] == "${{ steps.changelog_pr.outputs.pr_url }}" && mergeChangelog.Env["CHANGELOG_BRANCH"] == "${{ steps.changelog_pr.outputs.branch }}", "delivery must consume the prepared candidate identity")
+	require(strings.Contains(mergeChangelog.Run, `gh pr ready "$pr_url"`) && stepIndex(releaseJob, "Create release") < stepIndex(releaseJob, mergeChangelog.Name), "candidate may become ready only after successful publication")
+	require(strings.Contains(mergeChangelog.Run, `"$actual_head" != "$head_sha"`), "candidate head must be rechecked before marking it ready")
+}
+
+func validateCandidateReuse(helper string) {
+	require(strings.Contains(helper, `branch="chore/changelog-${RELEASE_TAG#v}"`), "release retries must reuse a deterministic changelog branch")
+	require(strings.Contains(helper, `--base main --head "$branch" --state open --json number`), "release retries must look up existing candidate PRs")
+	require(strings.Contains(helper, `length == 0 then "new"`) && strings.Contains(helper, `length == 1`), "candidate lookup must distinguish new, unique and ambiguous results")
+	require(strings.Contains(helper, `git diff --quiet "$remote_sha" -- CHANGELOG.md || blocked`), "release retries must refuse conflicting retained notes")
+	require(!strings.Contains(helper, "--force"), "preparation must never replace a retained candidate head")
 }
 
 type rulesetValidation struct {
@@ -637,6 +662,7 @@ func validateTrustedReleaseHelper(job workflowJob) {
 	require(trustedHelper.Env["TRUSTED_HELPER_SHA"] == "${{ github.workflow_sha }}", "release helpers must bind to the trusted workflow revision")
 	require(strings.TrimSpace(trustedHelper.Run) == `git fetch --no-tags origin "$TRUSTED_HELPER_SHA"
 git show "$TRUSTED_HELPER_SHA:.github/scripts/release-plan/main.go" > "$RUNNER_TEMP/release-plan.go"
+git show "$TRUSTED_HELPER_SHA:.github/scripts/prepare-changelog-pr.sh" > "$RUNNER_TEMP/prepare-changelog-pr.sh"
 git show "$TRUSTED_HELPER_SHA:.github/scripts/release-targets/main.go" > "$RUNNER_TEMP/release-targets.go"
 git show "$TRUSTED_HELPER_SHA:.github/release-targets-legacy.json" > "$RUNNER_TEMP/release-targets-legacy.json"`, "release helpers and the legacy compatibility manifest must load from the trusted workflow revision outside the target checkout")
 }

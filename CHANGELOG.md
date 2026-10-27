@@ -13,6 +13,11 @@ and this project uses semantic versioning.
 
 ## [Unreleased]
 
+## [0.23.5] - 2026-10-25
+
+- fix: keep dashboard background launches off the interactive desktop (#249)
+- docs: record v0.23.4 release (#247)
+
 ## [0.23.4] - 2026-10-23
 
 - ci: scan source and reachable history for credentials (#246)
@@ -404,7 +409,8 @@ the published releases above.
 - Dynamic or unreadable workflow definitions now display `unknown` in the
   trigger column instead of failing the list command.
 
-[Unreleased]: https://github.com/hemsoft-dev/gh-x/compare/v0.23.4...HEAD
+[Unreleased]: https://github.com/hemsoft-dev/gh-x/compare/v0.23.5...HEAD
+[0.23.5]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.5
 [0.23.4]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.4
 [0.23.3]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.3
 [0.23.2]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.2
