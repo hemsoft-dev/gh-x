@@ -38,6 +38,7 @@ jobs:
         run: |
           git fetch --no-tags origin "$TRUSTED_HELPER_SHA"
           git show "$TRUSTED_HELPER_SHA:.github/scripts/release-plan/main.go" > "$RUNNER_TEMP/release-plan.go"
+          git show "$TRUSTED_HELPER_SHA:.github/scripts/prepare-changelog-pr.sh" > "$RUNNER_TEMP/prepare-changelog-pr.sh"
           git show "$TRUSTED_HELPER_SHA:.github/scripts/release-targets/main.go" > "$RUNNER_TEMP/release-targets.go"
           git show "$TRUSTED_HELPER_SHA:.github/release-targets-legacy.json" > "$RUNNER_TEMP/release-targets-legacy.json"
 
@@ -79,6 +80,30 @@ jobs:
           VERSION_BASE_TAG: ${{ steps.check.outputs.version_base }}
         run: go run "$RUNNER_TEMP/release-plan.go" version
 
+      - name: Generate release notes
+        if: steps.check.outputs.skip == 'false'
+        id: notes
+        env:
+          LATEST_TAG: ${{ steps.check.outputs.latest }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: go run "$RUNNER_TEMP/release-plan.go" notes
+
+      - name: Prepare candidate changelog PR before publication
+        id: changelog_pr
+        if: steps.check.outputs.skip == 'false' || steps.existing_release.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+          RELEASE_PUBLISHED: ${{ steps.existing_release.outputs.found == 'true' }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag || steps.check.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git switch --detach origin/main
+          go run "$RUNNER_TEMP/release-plan.go" changelog
+          bash "$RUNNER_TEMP/prepare-changelog-pr.sh"
+          git switch --detach "$RELEASE_SHA"
+
       - name: Build cross-platform binaries
         if: steps.check.outputs.skip == 'false' || steps.existing_release.outputs.found == 'true'
         env:
@@ -103,14 +128,6 @@ jobs:
         with:
           subject-path: 'dist/*'
 
-      - name: Generate release notes
-        if: steps.check.outputs.skip == 'false'
-        id: notes
-        env:
-          LATEST_TAG: ${{ steps.check.outputs.latest }}
-          RELEASE_TAG: ${{ steps.version.outputs.tag }}
-        run: go run "$RUNNER_TEMP/release-plan.go" notes
-
       - name: Create release
         if: steps.check.outputs.skip == 'false' || steps.existing_release.outputs.found == 'true'
         env:
@@ -119,62 +136,43 @@ jobs:
           RELEASE_TAG: ${{ steps.version.outputs.tag || steps.check.outputs.release_tag }}
         run: go run "$RUNNER_TEMP/release-plan.go" create
 
-      - name: Update changelog
-        if: steps.check.outputs.skip == 'false' || steps.existing_release.outputs.found == 'true'
-        env:
-          RELEASE_TAG: ${{ steps.version.outputs.tag || steps.check.outputs.release_tag }}
-        run: |
-          git fetch origin main
-          git switch --detach origin/main
-          go run "$RUNNER_TEMP/release-plan.go" changelog
-
       - name: Queue guarded changelog auto-merge and await completion
         if: steps.check.outputs.skip == 'false' || steps.existing_release.outputs.found == 'true'
         env:
+          CHANGELOG_PR_URL: ${{ steps.changelog_pr.outputs.pr_url }}
+          CHANGELOG_BRANCH: ${{ steps.changelog_pr.outputs.branch }}
+          EXPECTED_HEAD: ${{ steps.changelog_pr.outputs.head_sha }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ steps.version.outputs.tag || steps.check.outputs.release_tag }}
           RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
           CODEX_REVIEW_TOKEN: ${{ secrets.CODEX_REVIEW_TOKEN }}
         run: |
           set -euo pipefail
-          if git diff --quiet -- CHANGELOG.md; then
-            echo "CHANGELOG.md already records ${RELEASE_TAG}."
+          git switch --detach origin/main
+          pr_url="$CHANGELOG_PR_URL"
+          head_sha="$EXPECTED_HEAD"
+          branch="$CHANGELOG_BRANCH"
+          if [[ -z "$pr_url" ]]; then
+            echo "CHANGELOG.md already records published ${RELEASE_TAG}."
             if [[ "$(git rev-parse HEAD)" != "$RELEASE_SHA" ]]; then
               gh workflow run ci.yml --ref main
             fi
             exit 0
           fi
-
-          branch="chore/changelog-${RELEASE_TAG#v}"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git switch -c "$branch"
-          remote_sha=$(git ls-remote --heads origin "$branch" | awk '{print $1}')
-          if [[ -n "$remote_sha" ]]; then
-            git fetch origin "$remote_sha"
+          # Only successful publication makes the planned candidate reviewable.
+          actual_head=$(gh pr view "$pr_url" --json headRefOid --jq .headRefOid)
+          if [[ "$actual_head" != "$head_sha" ]]; then
+            echo "::error::PR $pr_url moved from prepared head $head_sha to $actual_head; leaving it unchanged."
+            exit 1
           fi
-          if [[ -n "$remote_sha" ]] && git diff --quiet "$remote_sha" -- CHANGELOG.md; then
-            # Keep the review request, evidence and deadline on the original SHA.
-            # Keep executing the trusted main checkout's helper, even if main advanced.
-            head_sha="$remote_sha"
-            echo "Reusing unchanged changelog head $head_sha."
-          else
-            git add CHANGELOG.md
-            git commit -m "docs: record ${RELEASE_TAG} release"
-            head_sha=$(git rev-parse HEAD)
-            git push --force-with-lease="refs/heads/${branch}:${remote_sha}" origin "HEAD:refs/heads/${branch}"
+          is_draft=$(gh pr view "$pr_url" --json isDraft --jq .isDraft)
+          if [[ "$is_draft" == true ]]; then
+            gh pr ready "$pr_url"
+          elif [[ "$is_draft" != false ]]; then
+            echo "::error::PR $pr_url returned an invalid draft state; leaving it unchanged."
+            exit 1
           fi
-
-          pr_url=$(gh pr list --base main --head "$branch" --state open --json url --jq '.[0].url // empty')
-          if [[ -z "$pr_url" ]]; then
-            pr_url=$(gh pr create \
-              --base main \
-              --head "$branch" \
-              --title "docs: record ${RELEASE_TAG} release" \
-              --body "Records the published ${RELEASE_TAG} notes and advances the Unreleased comparison. Generated by the Auto Release workflow.")
-          else
-            echo "Reusing existing changelog pull request: $pr_url"
-          fi
+          gh pr edit "$pr_url" --body "Records the published ${RELEASE_TAG} notes and advances the Unreleased comparison. Generated by the Auto Release workflow."
           if [[ -z "$CODEX_REVIEW_TOKEN" ]]; then
             echo "::error::PR $pr_url head $head_sha requester unavailable: configure CODEX_REVIEW_TOKEN for the connected HemSoft account. No bot review request was posted."
             exit 1
