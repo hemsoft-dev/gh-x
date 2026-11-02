@@ -345,23 +345,27 @@ func latestAIReviewIsClean(reviews []aiReviewNode) bool {
 			continue
 		}
 		hasBotReview = true
-		switch strings.ToUpper(r.State) {
-		case "APPROVED":
-			clean = r.CommentCount == 0 && (!isCopilotReviewer(r.AuthorLogin) || copilotReviewListsNothing(r.ReviewBody))
-		case "COMMENTED":
-			switch {
-			case isCopilotReviewer(r.AuthorLogin):
-				clean = copilotReviewIsClean(r.ReviewBody)
-			case isCodexReviewer(r.AuthorLogin):
-				clean = r.ExplicitClean
-			default:
-				clean = r.CommentCount == 0
-			}
-		default:
-			clean = false
-		}
+		clean = aiReviewIsExplicitlyClean(r)
 	}
 	return hasBotReview && clean
+}
+
+func aiReviewIsExplicitlyClean(r aiReviewNode) bool {
+	switch strings.ToUpper(r.State) {
+	case "APPROVED":
+		return r.CommentCount == 0 && (!isCopilotReviewer(r.AuthorLogin) || copilotReviewListsNothing(r.ReviewBody))
+	case "COMMENTED":
+		switch {
+		case isCopilotReviewer(r.AuthorLogin):
+			return copilotReviewIsClean(r.ReviewBody)
+		case isCodexReviewer(r.AuthorLogin):
+			return r.ExplicitClean
+		default:
+			return r.CommentCount == 0
+		}
+	default:
+		return false
+	}
 }
 
 // isAIReviewClean returns true when AI review is effectively clear for the bang
@@ -380,19 +384,19 @@ func isAIReviewClean(reviews []aiReviewNode, threads []aiReviewThread) bool {
 		// passing result does not by itself earn its clean marker.
 		return false
 	}
-	return detectAIReview(reviews, threads) == "pass" && aiThreadsAllClear(threads)
+	return detectAIReview(reviews, threads) == "pass" && allAIThreadsResolved(threads)
 }
 
-// aiThreadsAllClear returns true when at least one AI-authored thread exists and
-// every such thread is resolved or known to be Low severity.
-func aiThreadsAllClear(threads []aiReviewThread) bool {
+// allAIThreadsResolved returns true when at least one AI-authored thread exists
+// and every such thread is resolved.
+func allAIThreadsResolved(threads []aiReviewThread) bool {
 	aiThreadCount := 0
 	for _, t := range threads {
 		if !isAIReviewer(t.AuthorLogin) && t.AuthorType != "Bot" {
 			continue
 		}
 		aiThreadCount++
-		if !t.IsResolved && !t.LowSeverity {
+		if !t.IsResolved {
 			return false
 		}
 	}
@@ -435,11 +439,11 @@ func detectAIReview(reviews []aiReviewNode, threads []aiReviewThread) string {
 func aiReviewPasses(review aiReviewNode, threads []aiReviewThread) bool {
 	switch strings.ToUpper(review.State) {
 	case "APPROVED":
-		return review.CommentCount == 0 || aiThreadsAllClear(threads)
+		return review.CommentCount == 0 || allAIThreadsResolved(threads) || isCopilotReviewer(review.AuthorLogin) && hasLowSeverityThread(threads)
 	case "COMMENTED":
 		return commentedAIReviewPasses(review, threads)
 	case "CHANGES_REQUESTED":
-		return aiThreadsAllClear(threads)
+		return allAIThreadsResolved(threads)
 	default:
 		return false
 	}
@@ -450,9 +454,9 @@ func commentedAIReviewPasses(review aiReviewNode, threads []aiReviewThread) bool
 	case isCopilotReviewer(review.AuthorLogin):
 		return copilotReviewPasses(review.ReviewBody)
 	case isCodexReviewer(review.AuthorLogin):
-		return review.ExplicitClean || aiThreadsAllClear(threads)
+		return review.ExplicitClean || allAIThreadsResolved(threads)
 	default:
-		return review.CommentCount == 0 || aiThreadsAllClear(threads)
+		return review.CommentCount == 0 || allAIThreadsResolved(threads)
 	}
 }
 

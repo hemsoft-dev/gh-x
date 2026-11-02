@@ -210,6 +210,17 @@ func markLowSeverityThreads(reviews []aiReviewNode, threads []aiReviewThread) []
 	return marked
 }
 
+// hasLowSeverityThread reports a thread Copilot listed as Low. Only a Copilot
+// verdict may rely on it: another reviewer's verdict needs its threads resolved.
+func hasLowSeverityThread(threads []aiReviewThread) bool {
+	for _, thread := range threads {
+		if thread.LowSeverity {
+			return true
+		}
+	}
+	return false
+}
+
 // hasBlockingAIThreads reports an unresolved AI thread that is not known to be
 // Low severity.
 func hasBlockingAIThreads(threads []aiReviewThread) bool {

@@ -239,6 +239,29 @@ func TestCopilotSeverityDecidesAIReview(t *testing.T) {
 			want:    "pass",
 		},
 		{
+			name:    "copilot approved state with comments and no thread data fails",
+			reviews: []aiReviewNode{copilotApproved(openLow, 1)},
+			want:    "fail",
+		},
+		{
+			name:    "an unresolved low thread does not clear another bot's changes request",
+			reviews: []aiReviewNode{copilotReview(openLow), {State: "CHANGES_REQUESTED", AuthorLogin: "coderabbitai[bot]", AuthorType: "Bot"}},
+			threads: []aiReviewThread{copilotThread(copilotFirstThread, false)},
+			want:    "fail",
+		},
+		{
+			name:    "an unresolved low thread does not clear a codex review without a clean signal",
+			reviews: []aiReviewNode{copilotReview(openLow), {State: "COMMENTED", AuthorLogin: "chatgpt-codex-connector[bot]", AuthorType: "Bot"}},
+			threads: []aiReviewThread{copilotThread(copilotFirstThread, false)},
+			want:    "fail",
+		},
+		{
+			name:    "an unresolved low thread does not clear another bot's approval with comments",
+			reviews: []aiReviewNode{copilotReview(openLow), {State: "APPROVED", AuthorLogin: "coderabbitai[bot]", AuthorType: "Bot", CommentCount: 1}},
+			threads: []aiReviewThread{copilotThread(copilotFirstThread, false)},
+			want:    "fail",
+		},
+		{
 			name:    "findings tally matching the listed findings passes",
 			reviews: []aiReviewNode{copilotReview(copilotBody(copilotChanges, "**Findings:** 2 "+copilotBadge("Low"), twoLows))},
 			want:    "pass",
