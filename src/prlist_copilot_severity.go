@@ -15,6 +15,9 @@ var (
 	copilotActiveCount     = regexp.MustCompile(`(?i)(\d+)\s+(?:open|previously missed)\b|\bopen\s*\((\d+)\)`)
 	copilotResolvedSection = regexp.MustCompile(`(?i)\bresolved\b`)
 	copilotNoOpenFindings  = regexp.MustCompile(`(?im)^\s*\*\*\s*(?:no|0) open (?:issues|findings)\s*\*\*`)
+	copilotFindingsTally   = regexp.MustCompile(`(?im)^\s*\*\*Findings:\*\*(.*)$`)
+	copilotHTMLTag         = regexp.MustCompile(`<[^>]*>`)
+	copilotTallyNumber     = regexp.MustCompile(`\d+`)
 )
 
 // copilotFinding is one severity badge from a Copilot review overview.
@@ -33,8 +36,9 @@ type copilotOverview struct {
 
 // parseCopilotOverview reads the severity badges by section. Every badge counts
 // as active unless its section reports it resolved, so an unfamiliar section
-// fails closed. A section that states a count the parsed badges do not reach
-// marks the overview inconsistent instead of under-reporting its findings.
+// fails closed. A section or preamble tally that states a count the listed
+// badges do not reach marks the overview inconsistent instead of under-reporting
+// its findings.
 func parseCopilotOverview(body string) copilotOverview {
 	sections := copilotSectionTitle.FindAllStringSubmatchIndex(body, -1)
 	overview := copilotOverview{countsConsistent: true}
@@ -45,19 +49,52 @@ func parseCopilotOverview(body string) copilotOverview {
 	}
 	overview.findings = parseCopilotFindings(body[:preambleEnd], true)
 
+	listedActive := 0
 	for i, section := range sections {
 		sectionEnd := len(body)
 		if i+1 < len(sections) {
 			sectionEnd = sections[i+1][0]
 		}
 		title := body[section[2]:section[3]]
-		findings := parseCopilotFindings(body[section[1]:sectionEnd], !copilotResolvedSection.MatchString(title))
+		active := !copilotResolvedSection.MatchString(title)
+		findings := parseCopilotFindings(body[section[1]:sectionEnd], active)
 		if !copilotSectionCountMatches(title, len(findings)) {
 			overview.countsConsistent = false
 		}
+		if active {
+			listedActive += len(findings)
+		}
 		overview.findings = append(overview.findings, findings...)
 	}
+	if !copilotTallyMatches(body[:preambleEnd], listedActive) {
+		overview.countsConsistent = false
+	}
 	return overview
+}
+
+// copilotTallyMatches checks the preamble's "**Findings:** 1 <High> · 2 <Low>"
+// line against the active findings its sections list. The tally puts a count
+// before one badge per severity, so its total can't be read from the badges. A
+// tally that is neither numbers nor "None" can't be trusted.
+func copilotTallyMatches(preamble string, listedActive int) bool {
+	tally := copilotFindingsTally.FindStringSubmatch(preamble)
+	if tally == nil {
+		return true
+	}
+	text := strings.TrimSpace(copilotHTMLTag.ReplaceAllString(tally[1], ""))
+	numbers := copilotTallyNumber.FindAllString(text, -1)
+	if len(numbers) == 0 {
+		return strings.EqualFold(text, "none") && listedActive == 0
+	}
+	stated := 0
+	for _, number := range numbers {
+		count, err := strconv.Atoi(number)
+		if err != nil {
+			return false
+		}
+		stated += count
+	}
+	return stated == listedActive
 }
 
 func parseCopilotFindings(text string, active bool) []copilotFinding {
@@ -111,8 +148,16 @@ func (overview copilotOverview) blocks() bool {
 	return false
 }
 
-func copilotReviewBlocks(body string) bool {
-	return parseCopilotOverview(body).blocks()
+// latestCopilotReviewBlocks applies the severity rule to Copilot's latest review
+// that still stands, so a later review from another bot can't clear its findings.
+func latestCopilotReviewBlocks(reviews []aiReviewNode) bool {
+	for i := len(reviews) - 1; i >= 0; i-- {
+		review := reviews[i]
+		if isCopilotReviewer(review.AuthorLogin) && !strings.EqualFold(review.State, "DISMISSED") {
+			return parseCopilotOverview(review.ReviewBody).blocks()
+		}
+	}
+	return false
 }
 
 // copilotReviewPasses requires a recognized verdict and positive evidence: an
@@ -128,11 +173,17 @@ func copilotReviewPasses(body string) bool {
 	return verdict == copilotVerdictClean || overview.hasActiveFindings() || copilotNoOpenFindings.MatchString(body)
 }
 
+// copilotReviewListsNothing reports a readable overview with nothing active at
+// any severity.
+func copilotReviewListsNothing(body string) bool {
+	overview := parseCopilotOverview(body)
+	return !overview.blocks() && !overview.hasActiveFindings()
+}
+
 // copilotReviewIsClean is the stricter test behind the clean marker: Copilot
 // recommends approval and lists nothing active at any severity.
 func copilotReviewIsClean(body string) bool {
-	overview := parseCopilotOverview(body)
-	return classifyCopilotReview(body) == copilotVerdictClean && !overview.blocks() && !overview.hasActiveFindings()
+	return classifyCopilotReview(body) == copilotVerdictClean && copilotReviewListsNothing(body)
 }
 
 // markLowSeverityThreads flags Copilot threads whose latest mention in any

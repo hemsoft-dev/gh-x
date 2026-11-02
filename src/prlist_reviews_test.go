@@ -1302,13 +1302,13 @@ func TestApproverApprovalsKeepsLatestDecisionAndSortsApprovals(t *testing.T) {
 	}
 }
 
-func TestAllAIThreadsResolved(t *testing.T) {
+func TestAIThreadsAllClear(t *testing.T) {
 	t.Run("all resolved", func(t *testing.T) {
 		threads := []aiReviewThread{
 			{AuthorLogin: "copilot[bot]", IsResolved: true},
 			{AuthorLogin: "human", IsResolved: false},
 		}
-		if !allAIThreadsResolved(threads) {
+		if !aiThreadsAllClear(threads) {
 			t.Fatalf("expected true when all AI threads resolved")
 		}
 	})
@@ -1317,7 +1317,7 @@ func TestAllAIThreadsResolved(t *testing.T) {
 		threads := []aiReviewThread{
 			{AuthorLogin: "copilot[bot]", IsResolved: false},
 		}
-		if allAIThreadsResolved(threads) {
+		if aiThreadsAllClear(threads) {
 			t.Fatalf("expected false when AI thread unresolved")
 		}
 	})
@@ -1326,7 +1326,7 @@ func TestAllAIThreadsResolved(t *testing.T) {
 		threads := []aiReviewThread{
 			{AuthorLogin: "human", IsResolved: false},
 		}
-		if allAIThreadsResolved(threads) {
+		if aiThreadsAllClear(threads) {
 			t.Fatalf("expected false when no AI threads exist")
 		}
 	})

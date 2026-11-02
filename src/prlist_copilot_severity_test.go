@@ -57,6 +57,13 @@ func copilotThread(commentID string, resolved bool) aiReviewThread {
 
 func TestCopilotSeverityDecidesAIReview(t *testing.T) {
 	resolvedMedium := copilotSection("1 resolved since last review", copilotOpenLine("Medium", copilotOtherThread))
+	openMedium := copilotBody(copilotChanges, copilotSection("1 open issue", copilotOpenLine("Medium", copilotFirstThread)))
+	openLow := copilotBody(copilotChanges, copilotSection("1 open issue", copilotOpenLine("Low", copilotFirstThread)))
+	twoLows := copilotSection("2 open issues", copilotOpenLine("Low", copilotFirstThread), copilotOpenLine("Low", copilotOtherThread))
+	otherBotApproval := aiReviewNode{State: "APPROVED", AuthorLogin: "coderabbitai[bot]", AuthorType: "Bot"}
+	copilotApproved := func(body string, commentCount int) aiReviewNode {
+		return aiReviewNode{State: "APPROVED", AuthorLogin: copilotLogin, AuthorType: "Bot", ReviewBody: body, CommentCount: commentCount}
+	}
 	tests := []struct {
 		name      string
 		reviews   []aiReviewNode
@@ -184,6 +191,98 @@ func TestCopilotSeverityDecidesAIReview(t *testing.T) {
 			reviews: []aiReviewNode{copilotReview(copilotBody(copilotChanges, copilotSection("1 open issue", copilotOpenLine("Medium", copilotFirstThread)))), copilotReview(copilotBody(copilotCloserLook, copilotNoOpen))},
 			threads: []aiReviewThread{copilotThread(copilotFirstThread, true)},
 			want:    "pass",
+		},
+		{
+			name:    "a later approval from another bot does not clear a medium",
+			reviews: []aiReviewNode{copilotReview(openMedium), otherBotApproval},
+			threads: []aiReviewThread{copilotThread(copilotFirstThread, true)},
+			want:    "fail",
+		},
+		{
+			name:      "a later approval from another bot keeps its pass over an open low",
+			reviews:   []aiReviewNode{copilotReview(openLow), otherBotApproval},
+			threads:   []aiReviewThread{copilotThread(copilotFirstThread, true)},
+			want:      "pass",
+			wantClean: true,
+		},
+		{
+			name:    "a dismissed copilot review no longer blocks",
+			reviews: []aiReviewNode{{State: "DISMISSED", AuthorLogin: copilotLogin, AuthorType: "Bot", ReviewBody: openMedium}},
+			want:    "-",
+		},
+		{
+			name:    "a dismissed copilot review does not hide the review before it",
+			reviews: []aiReviewNode{copilotReview(openMedium), {State: "DISMISSED", AuthorLogin: copilotLogin, AuthorType: "Bot", ReviewBody: copilotBody(copilotApproval, copilotNoOpen)}},
+			threads: []aiReviewThread{copilotThread(copilotFirstThread, true)},
+			want:    "fail",
+		},
+		{
+			name:      "copilot approved state with nothing listed earns the clean marker",
+			reviews:   []aiReviewNode{copilotApproved(copilotBody("🟢 Approved"), 0)},
+			want:      "pass",
+			wantClean: true,
+		},
+		{
+			name:    "copilot approved state with an open low has no clean marker",
+			reviews: []aiReviewNode{copilotApproved(openLow, 0)},
+			want:    "pass",
+		},
+		{
+			name:    "copilot approved state with an open medium fails",
+			reviews: []aiReviewNode{copilotApproved(openMedium, 0)},
+			want:    "fail",
+		},
+		{
+			name:    "copilot approved state passes with an unresolved low thread",
+			reviews: []aiReviewNode{copilotApproved(openLow, 1)},
+			threads: []aiReviewThread{copilotThread(copilotFirstThread, false)},
+			want:    "pass",
+		},
+		{
+			name:    "findings tally matching the listed findings passes",
+			reviews: []aiReviewNode{copilotReview(copilotBody(copilotChanges, "**Findings:** 2 "+copilotBadge("Low"), twoLows))},
+			want:    "pass",
+		},
+		{
+			name:    "findings tally ignores resolved sections",
+			reviews: []aiReviewNode{copilotReview(copilotBody(copilotChanges, "**Findings:** 2 "+copilotBadge("Low"), twoLows, resolvedMedium))},
+			want:    "pass",
+		},
+		{
+			name:    "findings tally above the listed findings fails closed",
+			reviews: []aiReviewNode{copilotReview(copilotBody(copilotChanges, "**Findings:** 3 "+copilotBadge("Low"), twoLows))},
+			want:    "fail",
+		},
+		{
+			name:    "findings tally sums every severity",
+			reviews: []aiReviewNode{copilotReview(copilotBody(copilotChanges, "**Findings:** 1 "+copilotBadge("Low")+" · 2 "+copilotBadge("Low"), twoLows))},
+			want:    "fail",
+		},
+		{
+			name:    "findings count with nothing listed fails closed",
+			reviews: []aiReviewNode{copilotReview(copilotBody(copilotChanges, "**Findings:** 2 "+copilotBadge("Low")))},
+			want:    "fail",
+		},
+		{
+			name:      "findings none with nothing listed stays clean",
+			reviews:   []aiReviewNode{copilotReview(copilotBody(copilotApproval, "**Findings:** None"))},
+			want:      "pass",
+			wantClean: true,
+		},
+		{
+			name:    "findings none above a listed finding fails closed",
+			reviews: []aiReviewNode{copilotReview(copilotBody(copilotChanges, "**Findings:** None", twoLows))},
+			want:    "fail",
+		},
+		{
+			name:    "findings tally without numbers fails closed",
+			reviews: []aiReviewNode{copilotReview(copilotBody(copilotApproval, "**Findings:** several"))},
+			want:    "fail",
+		},
+		{
+			name:    "findings tally too large to read fails closed",
+			reviews: []aiReviewNode{copilotReview(copilotBody(copilotApproval, "**Findings:** 99999999999999999999"))},
+			want:    "fail",
 		},
 	}
 	for _, tc := range tests {
