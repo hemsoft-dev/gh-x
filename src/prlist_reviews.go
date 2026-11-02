@@ -59,6 +59,8 @@ type aiReviewThread struct {
 	AuthorLogin string
 	AuthorType  string
 	IsResolved  bool
+	CommentID   string // Full database ID of the thread's first comment.
+	LowSeverity bool   // Set when a Copilot review lists this thread as Low.
 }
 
 // aiReviewComment holds PR conversation comments that may contain a
@@ -349,7 +351,7 @@ func latestAIReviewIsClean(reviews []aiReviewNode) bool {
 		case "COMMENTED":
 			switch {
 			case isCopilotReviewer(r.AuthorLogin):
-				clean = classifyCopilotReview(r.ReviewBody) == copilotVerdictClean
+				clean = copilotReviewIsClean(r.ReviewBody)
 			case isCodexReviewer(r.AuthorLogin):
 				clean = r.ExplicitClean
 			default:
@@ -372,6 +374,11 @@ func isAIReviewClean(reviews []aiReviewNode, threads []aiReviewThread) bool {
 	}
 	if latestAIReviewIsClean(reviews) {
 		return true
+	}
+	if latest, ok := latestAIReview(reviews); ok && isCopilotReviewer(latest.AuthorLogin) {
+		// Copilot can pass with Low findings or an unconfirmed verdict, so a
+		// passing result does not by itself earn its clean marker.
+		return false
 	}
 	return detectAIReview(reviews, threads) == "pass" && allAIThreadsResolved(threads)
 }
@@ -402,14 +409,15 @@ func hasUnresolvedAIThreads(threads []aiReviewThread) bool {
 }
 
 // detectAIReview determines the AI review status from the latest bot review and
-// thread resolution. A later clean review supersedes older findings, but any
-// unresolved AI-authored thread still forces a failure.
+// thread resolution. A later clean review supersedes older findings, but an
+// unresolved AI-authored thread still forces a failure unless Copilot listed it
+// as Low severity.
 func detectAIReview(reviews []aiReviewNode, threads []aiReviewThread) string {
 	latest, ok := latestAIReview(reviews)
 	if !ok {
 		return "-"
 	}
-	if hasUnresolvedAIThreads(threads) {
+	if hasBlockingAIThreads(threads) {
 		return "fail"
 	}
 
@@ -425,22 +433,29 @@ func detectAIReview(reviews []aiReviewNode, threads []aiReviewThread) string {
 }
 
 func aiReviewPasses(review aiReviewNode, threads []aiReviewThread) bool {
+	if isCopilotReviewer(review.AuthorLogin) && copilotReviewBlocks(review.ReviewBody) {
+		return false
+	}
 	switch strings.ToUpper(review.State) {
 	case "APPROVED":
 		return review.CommentCount == 0 || allAIThreadsResolved(threads)
 	case "COMMENTED":
-		switch {
-		case isCopilotReviewer(review.AuthorLogin):
-			return classifyCopilotReview(review.ReviewBody) == copilotVerdictClean
-		case isCodexReviewer(review.AuthorLogin):
-			return review.ExplicitClean || allAIThreadsResolved(threads)
-		default:
-			return review.CommentCount == 0 || allAIThreadsResolved(threads)
-		}
+		return commentedAIReviewPasses(review, threads)
 	case "CHANGES_REQUESTED":
 		return allAIThreadsResolved(threads)
 	default:
 		return false
+	}
+}
+
+func commentedAIReviewPasses(review aiReviewNode, threads []aiReviewThread) bool {
+	switch {
+	case isCopilotReviewer(review.AuthorLogin):
+		return copilotReviewPasses(review.ReviewBody)
+	case isCodexReviewer(review.AuthorLogin):
+		return review.ExplicitClean || allAIThreadsResolved(threads)
+	default:
+		return review.CommentCount == 0 || allAIThreadsResolved(threads)
 	}
 }
 
@@ -677,10 +692,11 @@ func parseReviewThreadStates(prData *supplementalNodeData) ([]aiReviewThread, bo
 	aiThreads := make([]aiReviewThread, 0, len(prData.ReviewThreads.Nodes))
 	unknownUnresolved := false
 	for _, t := range prData.ReviewThreads.Nodes {
-		var login, authorType string
+		var login, authorType, commentID string
 		if len(t.Comments.Nodes) > 0 {
 			login = t.Comments.Nodes[0].Author.Login
 			authorType = t.Comments.Nodes[0].Author.Typename
+			commentID = t.Comments.Nodes[0].FullDatabaseID
 		}
 		unknown := login == "" && authorType == ""
 		if unknown && !t.IsResolved {
@@ -690,6 +706,7 @@ func parseReviewThreadStates(prData *supplementalNodeData) ([]aiReviewThread, bo
 			AuthorLogin: login,
 			AuthorType:  authorType,
 			IsResolved:  t.IsResolved,
+			CommentID:   commentID,
 		})
 	}
 	return aiThreads, unknownUnresolved
@@ -775,7 +792,8 @@ type supplementalNodeData struct {
 			IsResolved bool `json:"isResolved"`
 			Comments   struct {
 				Nodes []struct {
-					Author struct {
+					FullDatabaseID string `json:"fullDatabaseId"`
+					Author         struct {
 						Login    string `json:"login"`
 						Typename string `json:"__typename"`
 					} `json:"author"`
@@ -960,8 +978,9 @@ func summarizeSupplementalReviews(
 	aiIncomplete bool,
 ) (aiReview string, aiClean bool) {
 	currentReviews := currentHeadReviewNodes(aiNodes, headRefOID)
-	aiReview = detectAIReview(currentReviews, aiThreads)
-	aiClean = isAIReviewClean(currentReviews, aiThreads)
+	markedThreads := markLowSeverityThreads(aiNodes, aiThreads)
+	aiReview = detectAIReview(currentReviews, markedThreads)
+	aiClean = isAIReviewClean(currentReviews, markedThreads)
 	if aiIncomplete && aiReview != "fail" {
 		// Unknown evidence widens an inconclusive result to unknown, but it
 		// cannot overturn a computed failure.
