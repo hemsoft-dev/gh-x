@@ -1,6 +1,7 @@
 package main
 
 import (
+	"regexp"
 	"strings"
 	"time"
 )
@@ -40,9 +41,45 @@ func exactHeadSFLPass(reviews []aiReviewNode, after time.Time, head string) bool
 		}
 		return r.AuthorType == "Bot" && r.State == "COMMENTED" && r.OccurredAt.After(after) &&
 			strings.HasPrefix(r.ReviewBody, "## ✅ Verdict: PASS • Round ") &&
-			strings.Contains(r.ReviewBody, "sha="+head+" -->")
+			sflStructuredHead(r.ReviewBody) == head
 	}
 	return false
+}
+
+var sflMarkerStart = regexp.MustCompile(`(?i)<!--\s*sfl\b`)
+var sflMarkerTrailer = regexp.MustCompile(`(?m)^<!-- sfl request=[1-9][0-9]* sha=([0-9a-f]{40}) -->$`)
+
+// The canonical receipt is a single standalone trailer, never quoted prose or
+// an example inside a code fence. Unknown marker formats cannot clear findings.
+func sflStructuredHead(body string) string {
+	body = strings.TrimRight(body, "\r\n")
+	matches := sflMarkerTrailer.FindAllStringSubmatchIndex(body, -1)
+	if len(sflMarkerStart.FindAllStringIndex(body, -1)) != 1 || len(matches) != 1 {
+		return ""
+	}
+	m := matches[0]
+	if m[1] != len(body) || insideMarkdownFence(body[:m[0]]) {
+		return ""
+	}
+	return body[m[2]:m[3]]
+}
+
+func insideMarkdownFence(body string) bool {
+	var fence byte
+	width := 0
+	for _, line := range strings.Split(body, "\n") {
+		line = strings.TrimSpace(line)
+		c, n := markdownFenceRun(line)
+		if n < 3 {
+			continue
+		}
+		if width == 0 {
+			fence, width = c, n
+		} else if c == fence && n >= width && strings.TrimSpace(line[n:]) == "" {
+			width = 0
+		}
+	}
+	return width != 0
 }
 
 func latestCurrentCopilot(reviews []aiReviewNode, head string) (aiReviewNode, int) {
@@ -105,4 +142,11 @@ func allCopilotFindingsDisposed(overview copilotOverview, disposed map[string]bo
 		matched = true
 	}
 	return matched
+}
+
+func markdownFenceRun(line string) (byte, int) {
+	if len(line) < 3 || line[0] != 96 && line[0] != 126 {
+		return 0, 0
+	}
+	return line[0], len(line) - len(strings.TrimLeft(line, string(line[0])))
 }

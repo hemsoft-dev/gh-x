@@ -604,7 +604,7 @@ func TestMapAtmNodeUsesThreadSeverity(t *testing.T) {
 }
 
 func TestSupplementalQueriesRequestThreadCommentIDs(t *testing.T) {
-	if !strings.Contains(prSupplementalFields, "comments(first: 20) { totalCount nodes { fullDatabaseId body createdAt author") {
+	if !strings.Contains(prSupplementalFields, "comments(first: 1) { nodes { fullDatabaseId author") {
 		t.Fatal("supplemental query must fetch the first thread comment's fullDatabaseId")
 	}
 	if !strings.Contains(atmPRFieldsFragment, "fullDatabaseId") {
