@@ -570,3 +570,78 @@ func TestSupplementalQueriesRequestThreadCommentIDs(t *testing.T) {
 		t.Fatal("atm query must fetch the first thread comment's fullDatabaseId")
 	}
 }
+
+func TestCopilotReviewWindowCompleteness(t *testing.T) {
+	head := strings.Repeat("a", 40)
+	for _, severity := range []string{"Medium", "High"} {
+		for _, resolved := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/resolved=%v", severity, resolved), func(t *testing.T) {
+				body := copilotBody(copilotChanges, copilotSection("1 previously missed issue", copilotOpenLine(severity, copilotFirstThread)))
+				var node map[string]any
+				if err := json.Unmarshal(copilotSupplementalJSON(t, head, body, copilotFirstThread, true), &node); err != nil {
+					t.Fatal(err)
+				}
+				if !resolved {
+					// Previously missed findings can have no review thread at all.
+					node["reviewThreads"] = map[string]any{"totalCount": 0, "nodes": []any{}}
+				}
+				connection := node["reviews"].(map[string]any)
+				copilot := connection["nodes"].([]any)[0]
+				reviews := []any{copilot}
+				for range 100 {
+					reviews = append(reviews, map[string]any{
+						"state": "APPROVED", "submittedAt": "2026-11-02T13:00:00Z",
+						"commit":   map[string]any{"oid": head},
+						"author":   map[string]any{"login": "cubic-dev-ai[bot]", "__typename": "Bot"},
+						"comments": map[string]any{"totalCount": 0},
+					})
+				}
+				for _, tc := range []struct {
+					name  string
+					nodes []any
+					total int
+					want  string
+				}{
+					{"complete blocking Copilot", reviews, 101, "fail"},
+					{"omitted blocking Copilot", reviews[1:], 101, "?"},
+					{"complete other bot only", reviews[1:], 100, "pass"},
+				} {
+					t.Run(tc.name, func(t *testing.T) {
+						connection["nodes"], connection["totalCount"] = tc.nodes, tc.total
+						raw, err := json.Marshal(node)
+						if err != nil {
+							t.Fatal(err)
+						}
+						_, info, ok := parsePRSupplementalNode(raw)
+						if !ok || info.AIReview != tc.want || (tc.want == "?" && (info.AIClean || !info.Incomplete)) {
+							t.Fatalf("AI=%q clean=%v incomplete=%v ok=%v; want %q", info.AIReview, info.AIClean, info.Incomplete, ok, tc.want)
+						}
+					})
+				}
+			})
+		}
+	}
+}
+
+func TestSufficientReviewEvidence(t *testing.T) {
+	for _, tc := range []struct {
+		name, login, state, commit, head string
+		want                             bool
+	}{
+		{"current Copilot", copilotLogin, "COMMENTED", "head", "head", true},
+		{"stale Copilot", copilotLogin, "COMMENTED", "old", "head", false},
+		{"dismissed Copilot", copilotLogin, "DISMISSED", "head", "head", false},
+		{"other bot", "cubic-dev-ai[bot]", "APPROVED", "head", "head", false},
+		{"unknown head", copilotLogin, "COMMENTED", "", "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reviews := []aiReviewNode{{AuthorLogin: tc.login, State: tc.state, CommitOID: tc.commit}}
+			if got := sufficientReviewEvidence(reviews, tc.head); got != tc.want {
+				t.Fatalf("sufficientReviewEvidence = %v, want %v", got, tc.want)
+			}
+		})
+	}
+	if sufficientReviewEvidence(nil, "head") {
+		t.Fatal("empty review window cannot establish Copilot's verdict")
+	}
+}

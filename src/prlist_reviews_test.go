@@ -912,7 +912,7 @@ func TestParsePRSupplementalNode(t *testing.T) {
 		}
 	})
 
-	t.Run("more than 100 historical reviews keep complete current-head evidence", func(t *testing.T) {
+	t.Run("Codex receipt cannot rule out omitted Copilot reviews", func(t *testing.T) {
 		raw := []byte(`{
 			"number": 593,
 			"headRefOid": "current-head",
@@ -948,8 +948,8 @@ func TestParsePRSupplementalNode(t *testing.T) {
 		if !ok {
 			t.Fatal("expected valid supplemental node")
 		}
-		if info.AIReview != "pass" || !info.AIClean {
-			t.Fatalf("expected complete current-head evidence to pass despite old review truncation, got AI=%q clean=%v", info.AIReview, info.AIClean)
+		if info.AIReview != "?" || info.AIClean {
+			t.Fatalf("expected omitted Copilot evidence to remain unknown despite a Codex receipt, got AI=%q clean=%v", info.AIReview, info.AIClean)
 		}
 	})
 
@@ -1176,29 +1176,6 @@ func TestConnectionIncomplete(t *testing.T) {
 				t.Fatalf("connectionIncomplete() = %v, want %v", got, tt.want)
 			}
 		})
-	}
-}
-
-func TestReviewWindowPredatesEvidence(t *testing.T) {
-	t0 := time.Date(2026, 8, 24, 14, 0, 0, 0, time.UTC)
-	t1 := t0.Add(time.Hour)
-	t2 := t1.Add(time.Hour)
-	reviews := []aiReviewNode{{OccurredAt: t2}, {OccurredAt: t1}}
-
-	if !reviewWindowPredatesEvidence(reviews, t2) {
-		t.Fatal("expected newer evidence to establish the formal review boundary")
-	}
-	if reviewWindowPredatesEvidence(reviews, t0) {
-		t.Fatal("expected older evidence to leave the formal review boundary ambiguous")
-	}
-	if reviewWindowPredatesEvidence(reviews, t1) {
-		t.Fatal("expected equal timestamps across connections to remain ambiguous")
-	}
-	if reviewWindowPredatesEvidence([]aiReviewNode{{}}, t2) {
-		t.Fatal("expected a missing formal review timestamp to fail closed")
-	}
-	if reviewWindowPredatesEvidence(reviews, time.Time{}) {
-		t.Fatal("expected a missing evidence timestamp to fail closed")
 	}
 }
 

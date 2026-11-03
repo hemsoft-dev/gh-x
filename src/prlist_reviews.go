@@ -170,43 +170,20 @@ func currentHeadReviewNodes(reviews []aiReviewNode, headRefOID string) []aiRevie
 	return current
 }
 
-// hasCurrentHeadAIReview reports whether the formal review window contains AI
-// evidence for the current head. Supplemental review queries fetch the newest
-// reviews, so once current-head AI evidence is present, any truncated reviews
-// are older and cannot change the latest current-head result.
-func hasCurrentHeadAIReview(reviews []aiReviewNode, headRefOID string) bool {
+// sufficientReviewEvidence reports whether the newest review window establishes
+// Copilot's latest current-head verdict. Another bot's review or a newer Codex
+// receipt cannot supersede an omitted Copilot severity finding. A dismissed
+// Copilot review also leaves its previous standing verdict unknown.
+func sufficientReviewEvidence(reviews []aiReviewNode, headRefOID string) bool {
 	if headRefOID == "" {
 		return false
 	}
 	for _, review := range currentHeadReviewNodes(reviews, headRefOID) {
-		if isAIReviewer(review.AuthorLogin) || review.AuthorType == "Bot" {
+		if isCopilotReviewer(review.AuthorLogin) && !strings.EqualFold(review.State, "DISMISSED") {
 			return true
 		}
 	}
 	return false
-}
-
-// reviewWindowPredatesEvidence reports whether every omitted formal review is
-// known to be older than independently fetched evidence, such as a Codex
-// conversation receipt. A missing timestamp leaves the boundary ambiguous.
-func reviewWindowPredatesEvidence(reviews []aiReviewNode, evidenceAt time.Time) bool {
-	if evidenceAt.IsZero() || len(reviews) == 0 {
-		return false
-	}
-	oldest := reviews[0].OccurredAt
-	for _, review := range reviews {
-		if review.OccurredAt.IsZero() {
-			return false
-		}
-		if review.OccurredAt.Before(oldest) {
-			oldest = review.OccurredAt
-		}
-	}
-	return evidenceAt.After(oldest)
-}
-
-func sufficientReviewEvidence(reviews []aiReviewNode, headRefOID string, evidenceAt time.Time) bool {
-	return hasCurrentHeadAIReview(reviews, headRefOID) || reviewWindowPredatesEvidence(reviews, evidenceAt)
 }
 
 // reviewEvidenceOrderAmbiguous reports whether independently fetched formal
@@ -586,7 +563,7 @@ func parsePRSupplementalNode(raw json.RawMessage) (int, prSupplementalInfo, bool
 	reviewsIncomplete := connectionIncomplete(
 		prData.Reviews.TotalCount,
 		len(prData.Reviews.Nodes),
-		sufficientReviewEvidence(formal, prData.HeadRefOID, latestCurrentHeadCodexAt),
+		sufficientReviewEvidence(formal, prData.HeadRefOID),
 	)
 	reactionsIncomplete := hasCurrentHeadCodexSummary && !hasCurrentHeadCodexReview &&
 		(prData.Reactions == nil || connectionIncomplete(prData.Reactions.TotalCount, len(prData.Reactions.Nodes), false))
