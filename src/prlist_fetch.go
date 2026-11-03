@@ -324,7 +324,9 @@ func fetchPRSupplementalBatch(owner, name, host string, prNumbers []int) (map[in
 	query := buildPullRequestBatchQuery(owner, name, prNumbers, prSupplementalFields)
 
 	data, err := fetchGraphQL(host, query)
-	return parseSupplementalBatch(data, err, prNumbers)
+	infos, unavailable, parseErr := parseSupplementalBatch(data, err, prNumbers)
+	enrichErr := enrichPassiveDispositionEvidence(owner, name, data, infos, unavailable, func(query string) ([]byte, error) { return fetchGraphQL(host, query) })
+	return infos, unavailable, retainFirstError(parseErr, enrichErr)
 }
 
 func parseSupplementalBatch(data []byte, err error, prNumbers []int) (map[int]prSupplementalInfo, map[int]bool, error) {
@@ -356,7 +358,7 @@ func unavailablePRNumbers(prNumbers []int, infos map[int]prSupplementalInfo) map
 	return unavailable
 }
 
-const prSupplementalFields = `number headRefOid closingIssuesReferences(first: 100) { totalCount nodes { number url } } comments(last: 100) { totalCount nodes { body createdAt author { login __typename } } } reactions(content: THUMBS_UP, last: 100) { totalCount nodes { createdAt user { login __typename } } } reviewThreads(last: 100) { totalCount nodes { isResolved comments(first: 1) { nodes { fullDatabaseId author { login __typename } } } } } reviews(last: 100) { totalCount nodes { state body submittedAt commit { oid } author { login __typename } comments { totalCount } } } approvedReviews: latestOpinionatedReviews(last: 100) { totalCount pageInfo { hasPreviousPage } nodes { state submittedAt author { login __typename } } }`
+const prSupplementalFields = `number headRefOid repository { owner { login } } closingIssuesReferences(first: 100) { totalCount nodes { number url } } comments(last: 100) { totalCount nodes { body createdAt author { login __typename } } } reactions(content: THUMBS_UP, last: 100) { totalCount nodes { createdAt user { login __typename } } } reviewThreads(last: 100) { totalCount nodes { isResolved resolvedBy { login } comments(first: 1) { nodes { fullDatabaseId author { login __typename } } } } } reviews(last: 100) { totalCount nodes { state body submittedAt commit { oid } author { login __typename } comments { totalCount } } } approvedReviews: latestOpinionatedReviews(last: 100) { totalCount pageInfo { hasPreviousPage } nodes { state submittedAt author { login __typename } } }`
 
 func buildPullRequestBatchQuery(owner, name string, numbers []int, fields string) string {
 	parts := make([]string, 0, len(numbers))

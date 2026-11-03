@@ -44,14 +44,15 @@ type prSupplementalInfo struct {
 
 // aiReviewNode holds the fields needed to detect bot reviewer status.
 type aiReviewNode struct {
-	State         string
-	AuthorLogin   string
-	AuthorType    string
-	ReviewBody    string
-	CommentCount  int
-	ExplicitClean bool // Set only by parsed reviewer-specific clean evidence.
-	OccurredAt    time.Time
-	CommitOID     string
+	State           string
+	AuthorLogin     string
+	AuthorType      string
+	ReviewBody      string
+	CommentCount    int
+	PassiveDisposed bool // Verified HemSoft disposition of a passive overview.
+	ExplicitClean   bool // Set only by parsed reviewer-specific clean evidence.
+	OccurredAt      time.Time
+	CommitOID       string
 }
 
 // aiReviewThread holds thread resolution state and authorship for AI review detection.
@@ -579,6 +580,7 @@ func parsePRSupplementalNode(raw json.RawMessage) (int, prSupplementalInfo, bool
 		closingIssuesAvailable,
 		commentsIncomplete, threadsTruncated, reviewsIncomplete, reactionsIncomplete, approvalsIncomplete,
 	)
+	aiNodes = applyPassiveDispositions(&prData, aiNodes)
 	aiReview, aiClean := summarizeSupplementalReviews(
 		aiNodes,
 		aiThreads,
@@ -749,7 +751,12 @@ func preferApprovalDecision(candidate, current decisiveApprovalReview) bool {
 
 // supplementalNodeData mirrors the supplemental GraphQL query's per-PR shape.
 type supplementalNodeData struct {
-	Number                  int                        `json:"number"`
+	Number     int `json:"number"`
+	Repository struct {
+		Owner struct {
+			Login string `json:"login"`
+		} `json:"owner"`
+	} `json:"repository"`
 	HeadRefOID              string                     `json:"headRefOid"`
 	ClosingIssuesReferences *linkedReferenceConnection `json:"closingIssuesReferences"`
 	Comments                struct {
@@ -768,9 +775,15 @@ type supplementalNodeData struct {
 		TotalCount int `json:"totalCount"`
 		Nodes      []struct {
 			IsResolved bool `json:"isResolved"`
-			Comments   struct {
-				Nodes []struct {
-					FullDatabaseID string `json:"fullDatabaseId"`
+			ResolvedBy struct {
+				Login string `json:"login"`
+			} `json:"resolvedBy"`
+			Comments struct {
+				TotalCount int `json:"totalCount"`
+				Nodes      []struct {
+					Body           string    `json:"body"`
+					CreatedAt      time.Time `json:"createdAt"`
+					FullDatabaseID string    `json:"fullDatabaseId"`
 					Author         struct {
 						Login    string `json:"login"`
 						Typename string `json:"__typename"`

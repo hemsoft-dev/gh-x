@@ -167,6 +167,8 @@ func fetchSelectedMergedBatch(client *mergedQueryClient, owner, name string, sel
 	info := prSupplementalData{}
 	if supplemental {
 		info.Info, info.Unavailable, info.Err = parseSupplementalBatch(supplementalData, fetchErr, numbers)
+		enrichErr := enrichPassiveDispositionEvidence(owner, name, supplementalData, info.Info, info.Unavailable, client.query)
+		info.Err = retainFirstError(info.Err, enrichErr)
 	}
 	return rows, info, nil
 }
