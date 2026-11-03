@@ -1,0 +1,121 @@
+{
+  "number": 160,
+  "headRefOid": "fead02555f0b8f6fb70b3c351a7f34ef1bb29c08",
+  "repository": {
+    "owner": {
+      "login": "hemsoft-dev"
+    }
+  },
+  "reviews": {
+    "totalCount": 3,
+    "nodes": [
+      {
+        "state": "COMMENTED",
+        "body": "<!-- ccr-overview-v2 -->\n\n### \ud83d\udfe1 Changes recommended\n\nThe critical test is configured with a no-op validator, so it cannot raise the expected AdmissionError and fails unconditionally in the ordinary suite.\n\n<details open>\n<summary><strong>1 open issue</strong></summary>\n\n- <picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://github.githubassets.com/static/images/icons/copilot-code-review/high-v2-dark.svg\"><source media=\"(prefers-color-scheme: light)\" srcset=\"https://github.githubassets.com/static/images/icons/copilot-code-review/high-v2-light.svg\"><img src=\"https://github.githubassets.com/static/images/icons/copilot-code-review/high-v2-light.png\" alt=\"High severity\" width=\"62\" height=\"18\" align=\"texttop\"></picture> [Test expects AdmissionError while its fixture disables validation](https://github.com/hemsoft-dev/chief/pull/160#discussion_r4458750795) \u00b7 New\n</details>\n\n<details>\n<summary><strong>What changed in this PR</strong></summary>\n\nThis pull request fixes receipt composition for payloads with one leading blank line, preventing duplicate separators while preserving payload bytes and rejecting excessive leading blanks.\n\n**Changes:**\n- Reuse a payload\u2019s existing leading newline as the marker separator.\n- Preserve exact payload content, idempotency, and pending-spool behavior.\n- Add positive and negative integration coverage for leading-blank payloads.\n\n| File | Summary | Review note |\r\n|---|---|---|\r\n| `tests/\u200btest_decisions_append.py` | Adds regression coverage for leading-blank preservation and excessive-leading-blank rejection. | **Critical:** The rejection test runs under a fixture that mocks validation as a no-op, so it fails unconditionally. Move it to the real-engine integration class or provide a deterministic validator that raises `AdmissionError`. |\r\n| `scripts/\u200bdecisions-append.py` | Adjusts marker/payload separator composition without rewriting payload bytes. | No additional issues noted. |\n</details>\n\n<sub>Review effort: Lite</sub>",
+        "submittedAt": "2026-11-03T18:19:56Z",
+        "commit": {
+          "oid": "fead02555f0b8f6fb70b3c351a7f34ef1bb29c08"
+        },
+        "author": {
+          "login": "copilot-pull-request-reviewer",
+          "__typename": "Bot"
+        },
+        "comments": {
+          "totalCount": 1
+        }
+      },
+      {
+        "state": "COMMENTED",
+        "body": "## \u2705 Verdict: PASS \u2022 Round 1\n\nReview done by gpt-6.1-sol (same family: same-family: claude is logged out on this host)\n\nThe change reuses a payload's leading newline as the marker separator and adds positive and negative regression controls. Security, accuracy and quality passes found no evidenced defects within the static coverage; the result is clean for round 1, subject to the limits below.\n\n## \ud83d\udd28 Full-Spectrum Review Summary\n\n> **Effort:** high<br>**Review time:** 1m 31s<br>**Token count:** Unavailable\n\n| Pass | \ud83d\udd34 Critical | \ud83d\udfe0 High | \ud83d\udfe1 Medium | \u26aa Low |\n|------|------------:|--------:|----------:|-------:|\n| \ud83d\udd12 Security | 0 | 0 | 0 | 0 |\n| \u2705 Accuracy | 0 | 0 | 0 | 0 |\n| \ud83e\uddf0 Quality & Maintainability | 0 | 0 | 0 | 0 |\n| **Total** | **0** | **0** | **0** | **0** |\n\n### Key Findings\n\nNo material defects found.\n\n### Coverage\n\n- **Files reviewed:**\n  - `scripts/decisions-append.py`\n  - `tests/test_decisions_append.py`\n- **Context read:**\n  - `README.md`\n  - `CHIEF.md`\n  - `scripts/chief-remote.mjs`\n  - `scripts/markdown_check.py`\n  - `tests/test_markdown_check.py`\n  - `markdown/lint.mjs`\n  - `markdown/package.json`\n  - `.markdownlint-cli2.jsonc`\n  - `.github/workflows/tests.yml`\n  - `.github/workflows/markdown.yml`\n  - `docs/operations/markdown-validation.md`\n- **Verified:**\n  - Compare `base_commit.sha` matches `f890ecdfca622059c6618cad13f4c6ef54d63253`; its sole commit matches `fead02555f0b8f6fb70b3c351a7f34ef1bb29c08`.\n  - Inspected the complete two-file diff and both changed files at the exact head; inspected publisher source at the exact base.\n  - The complete head tree contains no `AGENTS.md` or `CLAUDE.md`; inspected relevant standing instructions in `CHIEF.md`.\n  - Accuracy: `compose_append` preserves the old prefix and payload bytes while selecting one separator newline for a leading LF and two otherwise.\n  - Security: proposed bytes still pass through pinned snapshot validation before Git object creation; the change adds no validation bypass.\n  - Failure paths: pending payload comparison, same-key detection, bounded push retries and fresh-base revalidation remain intact.\n  - Caller: `chief-remote.mjs` supplies UTF-8 stdin; `read_receipt` normalizes input newlines before payload composition.\n  - Quality: added controls assert exact validated/published bytes, payload preservation, idempotency, spool cleanup and excessive-blank rejection.\n  - Configuration: default Markdown rules remain enabled, inline directives are ignored, and installed-engine publisher controls require `CHIEF_PUBLISHER_INTEGRATION=1`.\n- **Not verified:**\n  - Actual `MD012` engine results: the dependency implementation and adopted installation are not present in the inspected repository source.\n  - PR claims of passing controls and prior failure reproduction: private evidence artifacts were not inspected.\n  - Documented Mini installation, manifest contents, executable version and live adoption: host state is outside read-only GitHub coverage.\n  - Historical baseline counts and broader operational claims in context documents were outside this separator-change review.\n- **Tests run:** None. Reviewer execution is disabled.\n\n---\n*HemSoft full-spectrum review \u2022 3 evidence-based passes \u2022 Reviewed head `fead02555f0b8f6fb70b3c351a7f34ef1bb29c08` \u2022 SFL v0*\n\n<!-- sfl request=6611952804 sha=fead02555f0b8f6fb70b3c351a7f34ef1bb29c08 -->",
+        "submittedAt": "2026-11-03T18:20:42Z",
+        "commit": {
+          "oid": "fead02555f0b8f6fb70b3c351a7f34ef1bb29c08"
+        },
+        "author": {
+          "login": "hemsoft-sfl-reviewer",
+          "__typename": "Bot"
+        },
+        "comments": {
+          "totalCount": 0
+        }
+      },
+      {
+        "state": "COMMENTED",
+        "body": "",
+        "submittedAt": "2026-11-03T18:37:39Z",
+        "commit": {
+          "oid": "fead02555f0b8f6fb70b3c351a7f34ef1bb29c08"
+        },
+        "author": {
+          "login": "HemSoft",
+          "__typename": "User"
+        },
+        "comments": {
+          "totalCount": 1
+        }
+      }
+    ]
+  },
+  "reviewThreads": {
+    "totalCount": 1,
+    "nodes": [
+      {
+        "isResolved": true,
+        "resolvedBy": {
+          "login": "HemSoft"
+        },
+        "comments": {
+          "totalCount": 2,
+          "nodes": [
+            {
+              "fullDatabaseId": "4458750795",
+              "body": "This test is defined on `ReceiptTests`, whose `setUp` patches `receipt.validate_append` with a no-op mock (lines 16-20). Therefore the base test run never raises `AdmissionError` and fails unconditionally; the real validator is only restored by the `PublisherAdmissionTests` subclass. Move this control to the real-engine integration class (or provide a deterministic validation stub that raises for MD012) so the ordinary suite does not assert an exception that its fixture disables.",
+              "createdAt": "2026-11-03T18:19:55Z",
+              "author": {
+                "login": "copilot-pull-request-reviewer",
+                "__typename": "Bot"
+              }
+            },
+            {
+              "fullDatabaseId": "4458931729",
+              "body": "Disproved against exact head `fead02555f0b8f6fb70b3c351a7f34ef1bb29c08`. Both new methods belong to `PublisherAdmissionTests`, not `ReceiptTests`. Its `setUp` calls the shared fixture and then explicitly calls `self.admission.stop()`, restoring the real `validate_append`. The exact published negative method passes with the adopted engine and zero skips; all31 publisher controls pass, including16 real-engine integrations. Against the unchanged adopted source, the positive leading-blank control fails with actual `AdmissionError: markdown_new_findings MD012:5`, while the excessive-blank negative control passes. That sensitivity result depends on active validation, not a no-op mock. Evidence is retained in `leading-red.log` and `publisher-green.log` under the owned Mini qualification root. Current-head SFL Round1 PASS and canonical unit/Markdown checks are also complete. No test or production edit was made in response to this incorrect class attribution.",
+              "createdAt": "2026-11-03T18:37:39Z",
+              "author": {
+                "login": "HemSoft",
+                "__typename": "User"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "comments": {
+    "totalCount": 1,
+    "nodes": [
+      {
+        "body": "@sfl review",
+        "createdAt": "2026-11-03T18:17:52Z",
+        "author": {
+          "login": "HemSoft",
+          "__typename": "User"
+        }
+      }
+    ]
+  },
+  "reactions": {
+    "totalCount": 0,
+    "nodes": []
+  },
+  "approvedReviews": {
+    "totalCount": 0,
+    "pageInfo": {
+      "hasPreviousPage": false
+    },
+    "nodes": []
+  },
+  "closingIssuesReferences": {
+    "totalCount": 0,
+    "nodes": []
+  }
+}

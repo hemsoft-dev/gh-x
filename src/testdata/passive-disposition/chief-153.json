@@ -1,0 +1,126 @@
+{
+  "number": 153,
+  "headRefOid": "e7ea04aa92612d58f36159ef5664db331ee366c1",
+  "repository": {
+    "owner": {
+      "login": "hemsoft-dev"
+    }
+  },
+  "reviews": {
+    "totalCount": 3,
+    "nodes": [
+      {
+        "state": "COMMENTED",
+        "body": "<!-- ccr-overview-v2 -->\n\n### \ud83d\udfe1 Changes recommended\n\nA moderate active finding shows the rollback test does not exercise the wall-clock seam, so it could pass despite a regression in the old clock coupling.\n\n<details open>\n<summary><strong>1 open issue</strong></summary>\n\n- <picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://github.githubassets.com/static/images/icons/copilot-code-review/medium-v2-dark.svg\"><source media=\"(prefers-color-scheme: light)\" srcset=\"https://github.githubassets.com/static/images/icons/copilot-code-review/medium-v2-light.svg\"><img src=\"https://github.githubassets.com/static/images/icons/copilot-code-review/medium-v2-light.png\" alt=\"Medium severity\" width=\"62\" height=\"18\" align=\"texttop\"></picture> [Rollback control bypasses the patched wall-clock seam](https://github.com/hemsoft-dev/chief/pull/153#discussion_r4457131650) \u00b7 New\n</details>\n\n<details>\n<summary><strong>What changed in this PR</strong></summary>\n\nThis pull request makes recovery-verification fixtures independent of the wall clock by using a deterministic synthetic timestamp source and adds coverage for backward clock movement.\n\n**Changes:**\n- Adds a fixed synthetic `stamp()` helper for recovery fixtures.\n- Patches fixture and probe timestamp generation within each test.\n- Adds a rollback regression for recovery verification.\n\nThe rollback control does not currently exercise the wall-clock seam because the fixture and probe clocks are already replaced with fixed helpers. It could pass even if the original wall-clock coupling regressed. The test should drive those clocks through the patched `datetime` or add a separate old-fixture failing control.\n\n| File | Summary |\r\n| --- | --- |\r\n| `tests/\u200btest_t3_recovery_verification.py` | Introduces deterministic timestamp fixtures, scoped patches, and the wall-clock rollback regression test. |\r\n\r\nThis pull request requires changes.\n</details>\n\n<sub>Review effort: Lite</sub>",
+        "submittedAt": "2026-11-03T15:58:04Z",
+        "commit": {
+          "oid": "e7ea04aa92612d58f36159ef5664db331ee366c1"
+        },
+        "author": {
+          "login": "copilot-pull-request-reviewer",
+          "__typename": "Bot"
+        },
+        "comments": {
+          "totalCount": 1
+        }
+      },
+      {
+        "state": "COMMENTED",
+        "body": "## \u2705 Verdict: PASS \u2022 Round 1\n\nReview done by gpt-6.1-sol (same family: same-family: claude is logged out on this host)\n\nThe change pins recovery-verification fixtures and probe observations to one synthetic clock and adds a rollback regression. Security, accuracy and quality passes found no evidenced defects within the inspected static coverage, supporting a clean Round 1 verdict.\n\n## \ud83d\udd28 Full-Spectrum Review Summary\n\n> **Effort:** high<br>**Review time:** 1m 47s<br>**Token count:** Unavailable\n\n| Pass | \ud83d\udd34 Critical | \ud83d\udfe0 High | \ud83d\udfe1 Medium | \u26aa Low |\n|------|------------:|--------:|----------:|-------:|\n| \ud83d\udd12 Security | 0 | 0 | 0 | 0 |\n| \u2705 Accuracy | 0 | 0 | 0 | 0 |\n| \ud83e\uddf0 Quality & Maintainability | 0 | 0 | 0 | 0 |\n| **Total** | **0** | **0** | **0** | **0** |\n\n### Key Findings\n\nNo material defects found.\n\n### Coverage\n\n- **Files reviewed:**\n  - `tests/test_t3_recovery_verification.py`\n- **Context read:**\n  - `tests/test_t3_update_admission.py`\n  - `scripts/t3-update-check.py`\n  - `.github/workflows/tests.yml`\n  - `README.md`\n  - `CHIEF.md`\n  - `docs/change-request-procedure.md`\n- **Verified:**\n  - Compare `base_commit.sha` matches `5b4c4fa7e322f5f53e64ef6fdaaeaf6957587717`; its sole head commit matches `e7ea04aa92612d58f36159ef5664db331ee366c1`.\n  - Inspected the complete single-file diff and exact-head source, plus the changed file at the reserved base.\n  - Compare reports divergence with merge base `2a98f9fdbdf7c6f3f59b6a3beddeee4ad353b6e5`; PR metadata still matches both reserved revisions.\n  - Security: changes remain in test fixtures; existing fake transport, temporary state and blocked resume seams remain intact.\n  - Accuracy: `FakeT3` methods resolve patched `admission.stamp`; fixture timestamps and `probe` observations share the fixed UTC clock.\n  - Traced timestamp ordering through `RestartTimeline`, `restart_report`, `verification_check` and replaced-run incident filtering.\n  - Quality: both new patches register automatic cleanup; stale-run, unrecovered-interruption, deliberate-stop, loop and unreachable-retry assertions remain.\n  - Issue requirements match the bounded fixture change; workflow declares Python `3.14` and unittest discovery.\n  - GitHub reports the exact-head `unit` check completed successfully; this is external CI evidence.\n- **Not verified:**\n  - Private RED/GREEN logs, claimed suite counts and export-byte verification were unavailable through the inspected GitHub API evidence.\n  - The historical CI failure's clock conditions remain unestablished.\n  - Runner-isolation implementation and broader deployment, routing and installation claims in unchanged guidance were outside the fixture review.\n- **Tests run:** None. Reviewer execution is disabled.\n\n---\n*HemSoft full-spectrum review \u2022 3 evidence-based passes \u2022 Reviewed head `e7ea04aa92612d58f36159ef5664db331ee366c1` \u2022 SFL v0*\n\n<!-- sfl request=6608613297 sha=e7ea04aa92612d58f36159ef5664db331ee366c1 -->",
+        "submittedAt": "2026-11-03T16:00:41Z",
+        "commit": {
+          "oid": "e7ea04aa92612d58f36159ef5664db331ee366c1"
+        },
+        "author": {
+          "login": "hemsoft-sfl-reviewer",
+          "__typename": "Bot"
+        },
+        "comments": {
+          "totalCount": 0
+        }
+      },
+      {
+        "state": "COMMENTED",
+        "body": "",
+        "submittedAt": "2026-11-03T16:10:32Z",
+        "commit": {
+          "oid": "e7ea04aa92612d58f36159ef5664db331ee366c1"
+        },
+        "author": {
+          "login": "HemSoft",
+          "__typename": "User"
+        },
+        "comments": {
+          "totalCount": 1
+        }
+      }
+    ]
+  },
+  "reviewThreads": {
+    "totalCount": 1,
+    "nodes": [
+      {
+        "isResolved": true,
+        "resolvedBy": {
+          "login": "HemSoft"
+        },
+        "comments": {
+          "totalCount": 2,
+          "nodes": [
+            {
+              "fullDatabaseId": "4457131650",
+              "body": "This rollback control does not exercise the wall-clock seam: `setUp()` has already replaced `admission.stamp` with the fixed `stamp` at line 30, and `u.now_iso` with the same fixed helper at line 31. Consequently `FakeT3.end()`/`run()` and the probe never call `admission.datetime.now()`, so changing `wall_clock.now.return_value` cannot affect any timestamp and this test would still pass even if the old wall-clock coupling regressed. Run this case with the shared helper and probe clock driven by the patched `datetime` (or add a separate old-fixture RED control) so the backward step actually changes the observation.",
+              "createdAt": "2026-11-03T15:58:04Z",
+              "author": {
+                "login": "copilot-pull-request-reviewer",
+                "__typename": "Bot"
+              }
+            },
+            {
+              "fullDatabaseId": "4457291429",
+              "body": "Verified against exact head `e7ea04aa92612d58f36159ef5664db331ee366c1` with a targeted mutation control: the published regression passes; restoring only the shared fixture's old ambient `admission.stamp` after setup makes that SAME published regression fail with the exact unknown-reconciliation assertion. The mutant has one assertion failure, zero errors; current code passes. The probe remains on its current synthetic clock in both variants. Thus the test does detect a return to the old shared clock coupling, even though its intended fixed path does not consume the patched ambient clock. No source change or assertion weakening is needed. Complete commands/logs and mutation harness are retained in `parent-mutation-and-index-proof.json`, `parent-regression-current.log` and `parent-regression-mutant.log` under the private evidence directory already recorded in the PR. This proves the regression's sensitivity, not the historical CI trigger, which remains unestablished.",
+              "createdAt": "2026-11-03T16:10:32Z",
+              "author": {
+                "login": "HemSoft",
+                "__typename": "User"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "comments": {
+    "totalCount": 1,
+    "nodes": [
+      {
+        "body": "@sfl review",
+        "createdAt": "2026-11-03T15:55:10Z",
+        "author": {
+          "login": "HemSoft",
+          "__typename": "User"
+        }
+      }
+    ]
+  },
+  "reactions": {
+    "totalCount": 0,
+    "nodes": []
+  },
+  "approvedReviews": {
+    "totalCount": 0,
+    "pageInfo": {
+      "hasPreviousPage": false
+    },
+    "nodes": []
+  },
+  "closingIssuesReferences": {
+    "totalCount": 1,
+    "nodes": [
+      {
+        "number": 152,
+        "url": "https://github.com/hemsoft-dev/chief/issues/152"
+      }
+    ]
+  }
+}
