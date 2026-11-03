@@ -263,7 +263,8 @@ func TestMapAtmNode(t *testing.T) {
 		IsResolved bool `json:"isResolved"`
 		Comments   struct {
 			Nodes []struct {
-				Author struct {
+				FullDatabaseID string `json:"fullDatabaseId"`
+				Author         struct {
 					Login    string `json:"login"`
 					Typename string `json:"__typename"`
 				} `json:"author"`
@@ -517,7 +518,8 @@ func TestMapAtmNodeCopilotCloserLookIsNotClean(t *testing.T) {
 		IsResolved bool `json:"isResolved"`
 		Comments   struct {
 			Nodes []struct {
-				Author struct {
+				FullDatabaseID string `json:"fullDatabaseId"`
+				Author         struct {
 					Login    string `json:"login"`
 					Typename string `json:"__typename"`
 				} `json:"author"`
@@ -525,7 +527,8 @@ func TestMapAtmNodeCopilotCloserLookIsNotClean(t *testing.T) {
 		} `json:"comments"`
 	}{IsResolved: true})
 	node.ReviewThreads.Nodes[0].Comments.Nodes = append(node.ReviewThreads.Nodes[0].Comments.Nodes, struct {
-		Author struct {
+		FullDatabaseID string `json:"fullDatabaseId"`
+		Author         struct {
 			Login    string `json:"login"`
 			Typename string `json:"__typename"`
 		} `json:"author"`
@@ -918,7 +921,8 @@ func TestExtractAtmReviewThreads(t *testing.T) {
 		IsResolved bool `json:"isResolved"`
 		Comments   struct {
 			Nodes []struct {
-				Author struct {
+				FullDatabaseID string `json:"fullDatabaseId"`
+				Author         struct {
 					Login    string `json:"login"`
 					Typename string `json:"__typename"`
 				} `json:"author"`
@@ -929,14 +933,16 @@ func TestExtractAtmReviewThreads(t *testing.T) {
 			IsResolved: true,
 			Comments: struct {
 				Nodes []struct {
-					Author struct {
+					FullDatabaseID string `json:"fullDatabaseId"`
+					Author         struct {
 						Login    string `json:"login"`
 						Typename string `json:"__typename"`
 					} `json:"author"`
 				} `json:"nodes"`
 			}{
 				Nodes: []struct {
-					Author struct {
+					FullDatabaseID string `json:"fullDatabaseId"`
+					Author         struct {
 						Login    string `json:"login"`
 						Typename string `json:"__typename"`
 					} `json:"author"`

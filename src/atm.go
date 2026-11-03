@@ -321,6 +321,7 @@ const atmPRFieldsFragment = `
             isResolved
             comments(first: 1) {
               nodes {
+                fullDatabaseId
                 author { login __typename }
               }
             }
@@ -423,7 +424,8 @@ type atmPullRequestNode struct {
 			IsResolved bool `json:"isResolved"`
 			Comments   struct {
 				Nodes []struct {
-					Author struct {
+					FullDatabaseID string `json:"fullDatabaseId"`
+					Author         struct {
 						Login    string `json:"login"`
 						Typename string `json:"__typename"`
 					} `json:"author"`
@@ -601,15 +603,17 @@ func extractAtmCheckItems(node atmPullRequestNode) []checkItem {
 func extractAtmReviewThreads(node atmPullRequestNode) []aiReviewThread {
 	threads := make([]aiReviewThread, 0, len(node.ReviewThreads.Nodes))
 	for _, t := range node.ReviewThreads.Nodes {
-		var login, authorType string
+		var login, authorType, commentID string
 		if len(t.Comments.Nodes) > 0 {
 			login = t.Comments.Nodes[0].Author.Login
 			authorType = t.Comments.Nodes[0].Author.Typename
+			commentID = t.Comments.Nodes[0].FullDatabaseID
 		}
 		threads = append(threads, aiReviewThread{
 			AuthorLogin: login,
 			AuthorType:  authorType,
 			IsResolved:  t.IsResolved,
+			CommentID:   commentID,
 		})
 	}
 	return threads
