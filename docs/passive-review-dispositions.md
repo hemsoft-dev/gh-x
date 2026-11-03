@@ -18,7 +18,7 @@ decide whether prose disproves an allegation, search for dismissal keywords, or
 treat a clean SFL result alone as a disposition. Maintainers remain responsible
 for verifying and documenting their evidence before resolving a finding.
 
-This removes only the disposed overview from the AI summary's working evidence.
+This marks only the latest disposed overview as non-blocking in the AI summary.
 Historical reviews, thread counts, formal approvals and required checks remain
 unchanged. Missing or truncated disposition inputs retain the original blocker.
 Other owners keep their existing policy. ATM's separate conservative review path

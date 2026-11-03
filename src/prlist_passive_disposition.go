@@ -26,8 +26,9 @@ func applyPassiveDispositions(data *supplementalNodeData, reviews []aiReviewNode
 	if !allCopilotFindingsDisposed(overview, disposed) {
 		return reviews
 	}
-	result := append([]aiReviewNode(nil), reviews[:index]...)
-	return append(result, reviews[index+1:]...)
+	result := append([]aiReviewNode(nil), reviews...)
+	result[index].PassiveDisposed = true
+	return result
 }
 
 func exactHeadSFLPass(reviews []aiReviewNode, after time.Time, head string) bool {

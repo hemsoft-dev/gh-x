@@ -158,7 +158,7 @@ func latestCopilotReviewBlocks(reviews []aiReviewNode) bool {
 	for i := len(reviews) - 1; i >= 0; i-- {
 		review := reviews[i]
 		if isCopilotReviewer(review.AuthorLogin) && !strings.EqualFold(review.State, "DISMISSED") {
-			return parseCopilotOverview(review.ReviewBody).blocks()
+			return !review.PassiveDisposed && parseCopilotOverview(review.ReviewBody).blocks()
 		}
 	}
 	return false

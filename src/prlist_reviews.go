@@ -44,14 +44,15 @@ type prSupplementalInfo struct {
 
 // aiReviewNode holds the fields needed to detect bot reviewer status.
 type aiReviewNode struct {
-	State         string
-	AuthorLogin   string
-	AuthorType    string
-	ReviewBody    string
-	CommentCount  int
-	ExplicitClean bool // Set only by parsed reviewer-specific clean evidence.
-	OccurredAt    time.Time
-	CommitOID     string
+	State           string
+	AuthorLogin     string
+	AuthorType      string
+	ReviewBody      string
+	CommentCount    int
+	PassiveDisposed bool // Verified HemSoft disposition of a passive overview.
+	ExplicitClean   bool // Set only by parsed reviewer-specific clean evidence.
+	OccurredAt      time.Time
+	CommitOID       string
 }
 
 // aiReviewThread holds thread resolution state and authorship for AI review detection.

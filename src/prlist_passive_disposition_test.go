@@ -12,7 +12,7 @@ func TestPassiveDisposition(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, control := range []string{"disposed", "unresolved", "no-reply", "wrong-resolver", "wrong-author", "wrong-head-reply", "no-sfl", "stale-sfl", "failed-sfl", "spoofed-sfl", "ambiguous-time", "no-head-metadata", "wrong-owner", "truncated-replies", "truncated-threads", "truncated-reviews", "unknown-body", "unlinked-finding", "formal-changes-requested"} {
+		for _, control := range []string{"disposed", "earlier-overview", "unresolved", "no-reply", "wrong-resolver", "wrong-author", "wrong-head-reply", "no-sfl", "stale-sfl", "failed-sfl", "spoofed-sfl", "ambiguous-time", "no-head-metadata", "wrong-owner", "truncated-replies", "truncated-threads", "truncated-reviews", "unknown-body", "unlinked-finding", "formal-changes-requested"} {
 			t.Run(name+"/"+control, func(t *testing.T) {
 				var node map[string]any
 				if err := json.Unmarshal(raw, &node); err != nil {
@@ -27,6 +27,14 @@ func TestPassiveDisposition(t *testing.T) {
 				comments := thread["comments"].(map[string]any)
 				reply := comments["nodes"].([]any)[1].(map[string]any)
 				switch control {
+				case "earlier-overview":
+					earlier := make(map[string]any)
+					for key, value := range copilot {
+						earlier[key] = value
+					}
+					earlier["submittedAt"] = "2026-11-02T12:00:00Z"
+					reviews["nodes"] = append([]any{earlier}, rs...)
+					reviews["totalCount"] = 4
 				case "unresolved":
 					thread["isResolved"] = false
 				case "no-reply":
@@ -73,7 +81,7 @@ func TestPassiveDisposition(t *testing.T) {
 				if !ok {
 					t.Fatal("parse failed")
 				}
-				if control == "disposed" {
+				if control == "disposed" || control == "earlier-overview" {
 					if info.AIReview != "pass" || !info.AIClean {
 						t.Fatalf("want pass and clean, got %+v", info)
 					}
