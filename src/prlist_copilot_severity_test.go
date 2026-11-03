@@ -287,6 +287,47 @@ func TestCopilotSeverityDecidesAIReview(t *testing.T) {
 			want:    "fail",
 		},
 		{
+			name:    "explicit zero None with closer-look verdict passes without clean marker",
+			reviews: []aiReviewNode{copilotReview(copilotBody(copilotCloserLook, "**Findings:** None"))},
+			want:    "pass",
+		},
+		{
+			name:    "explicit zero 0 with closer-look verdict passes without clean marker",
+			reviews: []aiReviewNode{copilotReview(copilotBody(copilotCloserLook, "**Findings:** 0"))},
+			want:    "pass",
+		},
+		{
+			name:    "explicit zero None with changes verdict passes without clean marker",
+			reviews: []aiReviewNode{copilotReview(copilotBody(copilotChanges, "**Findings:** None"))},
+			want:    "pass",
+		},
+		{
+			name:    "explicit zero 0 with changes verdict passes without clean marker",
+			reviews: []aiReviewNode{copilotReview(copilotBody(copilotChanges, "**Findings:** 0"))},
+			want:    "pass",
+		},
+		{
+			name:    "explicit zero with resolved findings passes without clean marker",
+			reviews: []aiReviewNode{copilotReview(copilotBody(copilotCloserLook, "**Findings:** None", resolvedMedium))},
+			want:    "pass",
+		},
+		{
+			name:    "explicit zero does not clear an unresolved thread",
+			reviews: []aiReviewNode{copilotReview(copilotBody(copilotCloserLook, "**Findings:** 0"))},
+			threads: []aiReviewThread{copilotThread(copilotFirstThread, false)},
+			want:    "fail",
+		},
+		{
+			name:    "explicit zero does not clear an unknown verdict",
+			reviews: []aiReviewNode{copilotReview(copilotBody("Unrecognized verdict", "**Findings:** 0"))},
+			want:    "fail",
+		},
+		{
+			name:    "explicit zero above active findings fails closed",
+			reviews: []aiReviewNode{copilotReview(copilotBody(copilotCloserLook, "**Findings:** 0", twoLows))},
+			want:    "fail",
+		},
+		{
 			name:      "findings none with nothing listed stays clean",
 			reviews:   []aiReviewNode{copilotReview(copilotBody(copilotApproval, "**Findings:** None"))},
 			want:      "pass",

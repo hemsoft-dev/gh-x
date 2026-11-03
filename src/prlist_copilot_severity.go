@@ -30,8 +30,9 @@ type copilotFinding struct {
 // copilotOverview is the structured part of a Copilot review body. Severity
 // appears only here: neither inline comment bodies nor the comment API carry it.
 type copilotOverview struct {
-	findings         []copilotFinding
-	countsConsistent bool
+	findings          []copilotFinding
+	countsConsistent  bool
+	explicitZeroTally bool
 }
 
 // parseCopilotOverview reads the severity badges by section. Every badge counts
@@ -66,8 +67,11 @@ func parseCopilotOverview(body string) copilotOverview {
 		}
 		overview.findings = append(overview.findings, findings...)
 	}
-	if !copilotTallyMatches(body[:preambleEnd], listedActive) {
+	preamble := body[:preambleEnd]
+	if !copilotTallyMatches(preamble, listedActive) {
 		overview.countsConsistent = false
+	} else {
+		overview.explicitZeroTally = listedActive == 0 && copilotFindingsTally.MatchString(preamble)
 	}
 	return overview
 }
@@ -170,7 +174,7 @@ func copilotReviewPasses(body string) bool {
 	if verdict == copilotVerdictUnknown || overview.blocks() {
 		return false
 	}
-	return verdict == copilotVerdictClean || overview.hasActiveFindings() || copilotNoOpenFindings.MatchString(body)
+	return verdict == copilotVerdictClean || overview.hasActiveFindings() || overview.explicitZeroTally || copilotNoOpenFindings.MatchString(body)
 }
 
 // copilotReviewListsNothing reports a readable overview with nothing active at
