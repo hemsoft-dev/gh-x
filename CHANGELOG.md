@@ -13,6 +13,11 @@ and this project uses semantic versioning.
 
 ## [Unreleased]
 
+## [0.23.10] - 2026-11-03
+
+- fix: honor evidenced passive Copilot dispositions (#262)
+- docs: record v0.23.9 release (#260)
+
 ## [0.23.9] - 2026-11-03
 
 - fix: fail the AI column only on medium or high Copilot findings (#257)
@@ -430,7 +435,8 @@ the published releases above.
 - Dynamic or unreadable workflow definitions now display `unknown` in the
   trigger column instead of failing the list command.
 
-[Unreleased]: https://github.com/hemsoft-dev/gh-x/compare/v0.23.9...HEAD
+[Unreleased]: https://github.com/hemsoft-dev/gh-x/compare/v0.23.10...HEAD
+[0.23.10]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.10
 [0.23.9]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.9
 [0.23.8]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.8
 [0.23.7]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.7
