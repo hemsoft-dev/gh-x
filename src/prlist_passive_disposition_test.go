@@ -92,3 +92,65 @@ func TestPassiveDisposition(t *testing.T) {
 		}
 	}
 }
+
+func TestPassiveDispositionTally(t *testing.T) {
+	raw, err := os.ReadFile("testdata/passive-disposition/chief-160.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, control := range []string{"disposed", "unresolved", "wrong-resolver", "no-reply", "no-sfl", "mismatch", "unlinked", "tally-only", "section-tally"} {
+		t.Run(control, func(t *testing.T) {
+			var node map[string]any
+			if err := json.Unmarshal(raw, &node); err != nil {
+				t.Fatal(err)
+			}
+			reviews := node["reviews"].(map[string]any)
+			rs := reviews["nodes"].([]any)
+			copilot := rs[0].(map[string]any)
+			threads := node["reviewThreads"].(map[string]any)
+			thread := threads["nodes"].([]any)[0].(map[string]any)
+			comments := thread["comments"].(map[string]any)
+			first := comments["nodes"].([]any)[0].(map[string]any)
+			id := first["fullDatabaseId"].(string)
+			tally := "**Findings:** 1 " + copilotBadge("High")
+			finding := copilotOpenLine("High", id)
+			if control == "mismatch" {
+				tally = "**Findings:** 2 " + copilotBadge("High")
+			}
+			if control == "unlinked" {
+				finding = "- " + copilotBadge("High") + " Unlinked finding"
+			}
+			copilot["body"] = copilotBody(copilotChanges, tally, copilotSection("1 open issue", finding))
+			switch control {
+			case "unresolved":
+				thread["isResolved"] = false
+			case "wrong-resolver":
+				thread["resolvedBy"] = map[string]any{"login": "stranger"}
+			case "no-reply":
+				comments["nodes"] = comments["nodes"].([]any)[:1]
+			case "no-sfl":
+				reviews["nodes"] = []any{copilot}
+				reviews["totalCount"] = 1
+			case "section-tally":
+				copilot["body"] = copilotBody(copilotChanges, "**Findings:** 2 "+copilotBadge("High"), copilotSection("2 open issues", finding, "**Findings:** 1 "+copilotBadge("High")))
+			case "tally-only":
+				copilot["body"] = copilotBody(copilotChanges, "**Findings:** 0 "+copilotBadge("High"))
+			}
+			data, err := json.Marshal(node)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, info, ok := parsePRSupplementalNode(data)
+			if !ok {
+				t.Fatal("parse failed")
+			}
+			if control == "disposed" {
+				if info.AIReview != "pass" || !info.AIClean {
+					t.Fatalf("want pass and clean, got %+v", info)
+				}
+			} else if info.AIReview == "pass" {
+				t.Fatalf("unsafe pass: %+v", info)
+			}
+		})
+	}
+}

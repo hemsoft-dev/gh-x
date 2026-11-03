@@ -25,6 +25,7 @@ type copilotFinding struct {
 	severity     string
 	discussionID string
 	active       bool
+	tally        bool
 }
 
 // copilotOverview is the structured part of a Copilot review body. Severity
@@ -48,7 +49,7 @@ func parseCopilotOverview(body string) copilotOverview {
 	if len(sections) > 0 {
 		preambleEnd = sections[0][0]
 	}
-	overview.findings = parseCopilotFindings(body[:preambleEnd], true)
+	overview.findings = parseCopilotPreambleFindings(body[:preambleEnd])
 
 	listedActive := 0
 	for i, section := range sections {
@@ -99,6 +100,20 @@ func copilotTallyMatches(preamble string, listedActive int) bool {
 		stated += count
 	}
 	return stated == listedActive
+}
+
+// Tally badges retain their conservative severity signal, but are not individual
+// findings that can name a review thread. Only the preamble has this meaning.
+func parseCopilotPreambleFindings(text string) []copilotFinding {
+	var findings []copilotFinding
+	for _, line := range strings.Split(text, "\n") {
+		parsed := parseCopilotFindings(line, true)
+		for i := range parsed {
+			parsed[i].tally = copilotFindingsTally.MatchString(line)
+		}
+		findings = append(findings, parsed...)
+	}
+	return findings
 }
 
 func parseCopilotFindings(text string, active bool) []copilotFinding {

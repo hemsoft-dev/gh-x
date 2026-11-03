@@ -94,10 +94,15 @@ func completePassiveDispositionContext(data *supplementalNodeData) bool {
 }
 
 func allCopilotFindingsDisposed(overview copilotOverview, disposed map[string]bool) bool {
+	matched := false
 	for _, finding := range overview.findings {
-		if finding.active && (finding.discussionID == "" || !disposed[finding.discussionID]) {
+		if !finding.active || finding.tally {
+			continue
+		}
+		if finding.discussionID == "" || !disposed[finding.discussionID] {
 			return false
 		}
+		matched = true
 	}
-	return true
+	return matched
 }
