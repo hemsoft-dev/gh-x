@@ -45,7 +45,7 @@ cmdlet unavailable and verifies a known source hash and assembly filename.
 
 The hub's owned snapshot-reader forks set `windowsHide: true` with ignored
 standard streams and an IPC pipe. In the
-[pinned Node/libuv implementation](https://github.com/nodejs/node/blob/v24.21.0/deps/uv/src/win/process.c),
+[pinned Node/libuv implementation](https://github.com/nodejs/node/blob/v24.22.1/deps/uv/src/win/process.c),
 that combination requests `CREATE_NO_WINDOW`. Worker threads do not create
 processes. Imported provider extensions can contain their own implementation;
 the S4U desktop boundary applies to that descendant chain as well. Source tests
