@@ -13,6 +13,11 @@ and this project uses semantic versioning.
 
 ## [Unreleased]
 
+## [0.23.12] - 2026-11-06
+
+- fix: execute real package tests for each mutant (#264)
+- docs: record v0.23.11 release
+
 ## [0.23.11] - 2026-11-05
 
 - chore: patch pinned Node 24 runtime (#265)
@@ -440,7 +445,8 @@ the published releases above.
 - Dynamic or unreadable workflow definitions now display `unknown` in the
   trigger column instead of failing the list command.
 
-[Unreleased]: https://github.com/hemsoft-dev/gh-x/compare/v0.23.11...HEAD
+[Unreleased]: https://github.com/hemsoft-dev/gh-x/compare/v0.23.12...HEAD
+[0.23.12]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.12
 [0.23.11]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.11
 [0.23.10]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.10
 [0.23.9]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.9
