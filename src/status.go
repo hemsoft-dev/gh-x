@@ -812,12 +812,32 @@ func statusXY(line string) string {
 	return fields[1]
 }
 
+// statusPathOffsets maps each porcelain v2 entry kind to the number of
+// single-space-separated fields that precede its path. The path is the rest
+// of the line, so it keeps any spaces Git leaves unquoted.
+var statusPathOffsets = map[byte]int{'?': 1, '1': 8, '2': 9, 'u': 10}
+
+// statusPath returns the path of one porcelain v2 entry. A rename entry ends
+// in "<path><TAB><origPath>"; Git quotes any path that itself contains a tab,
+// so the first tab ends the new path. A line too short for its kind is
+// returned whole so it still counts once.
 func statusPath(line string) string {
-	fields := strings.Fields(line)
-	if len(fields) < 2 {
+	if line == "" {
 		return line
 	}
-	return fields[len(fields)-1]
+	offset, ok := statusPathOffsets[line[0]]
+	if !ok {
+		return line
+	}
+	fields := strings.SplitN(line, " ", offset+1)
+	if len(fields) <= offset {
+		return line
+	}
+	path := fields[offset]
+	if line[0] == '2' {
+		path, _, _ = strings.Cut(path, "\t")
+	}
+	return path
 }
 
 func markSeen(seen map[string]bool, path string) bool {
