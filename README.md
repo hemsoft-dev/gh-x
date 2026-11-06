@@ -1085,13 +1085,54 @@ failure reports. These JavaScript limits are separate from the Go limits below.
 | Mutation efficacy | at least 90% |
 | Mutator coverage | at least 90% |
 
-The mutation gate runs Gremlins v0.6.0 against `./src` and keeps the killed,
-lived, not-covered, efficacy, and mutator-coverage metrics in its output:
+The mutation gate runs Gremlins v0.6.0 against `./src`:
 
-```powershell
-gremlins unleash --timeout-coefficient 10 --threshold-efficacy 90 `
-  --threshold-mcover 90 ./src
+```bash
+bash .github/scripts/run-mutation-gate.sh
 ```
+
+Gremlins v0.6.0 derives a mutant's test package from the Go package name.
+Every file in `src` declares `package main`, so Gremlins tests the module root
+instead. That `go test` fails during setup, and Gremlins counts its exit code 1
+as a kill. Results before #264 (100% efficacy in about 10 seconds) came from
+that failure and tested no mutant. The gate now puts a small `go` stand-in,
+`.github/scripts/mutation-go-shim`, first on `PATH`. For each mutant it runs
+`go test -json -vet=off` on the scope's own packages and records the run:
+
+- a named failing test or an evidenced runtime panic kills the mutant; passing
+  tests leave it alive;
+- a mutant that fails with a compiler error is not viable and scores neither way;
+- a setup or resolution failure, any other build failure, or a run where no
+  test ran is unproven. A resource kill, test-process timeout, or unexplained
+  package failure is also unproven and cannot inflate efficacy.
+
+The gate fails on any unproven run, on a mutation Gremlins could not apply or
+restore, or when Gremlins' killed, lived or not-viable count differs from the
+recorded runs. It then applies the floors. Its log shows those counts, the
+timed-out count and per-mutant test time.
+
+Each mutant recompiles `package main`. The gate keeps a private build cache,
+warmed before the run and pruned after each mutant, so a run stays near
+150 MB instead of adding about 19 MB per mutant to the shared Go cache. It
+starts one Gremlins worker per two CPUs (`MUTATION_WORKERS` overrides this),
+because one per CPU pushed real runs past Gremlins' timeout and reported
+mutants that would have lived as timed out. `TMPDIR` needs room for one module
+copy per worker.
+
+The measured full-scope candidate (2026-11-05, Linux, 12 CPUs, 3 workers)
+took 74 minutes: 2,456 killed, 114 lived, 241 not viable, 11 timed out and
+152 not covered. Efficacy was 95.56% and mutator coverage was 94.42%, with
+zero unproven runs or mutation apply/restore errors. Of the kills, 2,447
+named a failing test and 9 retained a runtime panic in the record. Mean
+per-mutant test time was 4.6 seconds. Both 90% floors remain unchanged.
+
+The new boundary and state tests include three bounded flag-loop controls.
+Each calls the real parser in a child with a 20-second deadline and, on
+Linux, an address-space limit of its current size plus 512 MB. A reversed
+loop index therefore fails a named assertion before exhausting the runner.
+These address-space controls skip off Linux. The measured mutation run used
+a private 6 GB memory scope; it does not establish a hosted-runner memory
+limit. Hosted runtime and memory behavior remain to be measured in CI.
 
 The tool version, thresholds, and package scope live in
 `.github/quality-tools.env`. Raise a mutation floor only after the complete

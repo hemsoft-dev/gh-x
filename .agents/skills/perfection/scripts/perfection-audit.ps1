@@ -202,58 +202,6 @@ function Get-CrapFindings {
     return $failures
 }
 
-function Assert-MutationThresholds {
-    param(
-        [Parameter(Mandatory)][double]$EfficacyThreshold,
-        [Parameter(Mandatory)][double]$CoverageThreshold,
-        [Parameter(Mandatory)][string]$PackageScope
-    )
-
-    Show-Section "mutation efficacy >= $EfficacyThreshold% and mutator coverage >= $CoverageThreshold%"
-    $output = @(& gremlins unleash --timeout-coefficient 10 --threshold-efficacy $EfficacyThreshold --threshold-mcover $CoverageThreshold $PackageScope 2>&1)
-    $exitCode = $LASTEXITCODE
-    $output | ForEach-Object { Write-Host $_ }
-    $text = $output -join "`n"
-    if ($text.Contains('No results to report')) {
-        throw 'Mutation testing produced no results.'
-    }
-    if ($text -notmatch 'Killed:\s*(?<killed>\d+), Lived:\s*(?<lived>\d+), Not covered:\s*(?<uncovered>\d+)') {
-        throw 'Mutation output omitted killed, lived, or not-covered counts.'
-    }
-    $killed = [int]$Matches.killed
-    $lived = [int]$Matches.lived
-    $notCovered = [int]$Matches.uncovered
-    if ($text -notmatch 'Test efficacy:\s*(?<efficacy>[0-9.]+)%') {
-        throw 'Mutation output omitted test efficacy.'
-    }
-    $efficacy = [double]::Parse($Matches.efficacy, [System.Globalization.CultureInfo]::InvariantCulture)
-    if ($text -notmatch 'Mutator coverage:\s*(?<coverage>[0-9.]+)%') {
-        throw 'Mutation output omitted mutator coverage.'
-    }
-    $mutatorCoverage = [double]::Parse($Matches.coverage, [System.Globalization.CultureInfo]::InvariantCulture)
-    $covered = $killed + $lived
-    $total = $covered + $notCovered
-    if ($total -eq 0) {
-        throw 'Mutation testing produced no scored mutants.'
-    }
-    $efficacyLeft = $killed * 100
-    $efficacyRight = $EfficacyThreshold * $covered
-    $coverageLeft = $covered * 100
-    $coverageRight = $CoverageThreshold * $total
-    if ($efficacyLeft -lt $efficacyRight) {
-        throw "Mutation efficacy from $killed killed and $lived lived mutants is below $EfficacyThreshold% (reported $efficacy%)."
-    }
-    if ($coverageLeft -lt $coverageRight) {
-        throw "Mutator coverage from $covered covered and $notCovered not-covered mutants is below $CoverageThreshold% (reported $mutatorCoverage%)."
-    }
-    # Gremlins v0.6.0 reserves exit codes 10 and 11 for its <= threshold checks.
-    $thresholdEquality = ($exitCode -eq 10 -and $efficacyLeft -eq $efficacyRight) -or
-        ($exitCode -eq 11 -and $coverageLeft -eq $coverageRight)
-    if ($exitCode -ne 0 -and -not $thresholdEquality) {
-        throw "Mutation testing failed with exit code $exitCode."
-    }
-}
-
 . (Join-Path $PSScriptRoot 'audit-plan.ps1')
 
 # Dot-sourcing exposes the same executor to offline regression tests.
