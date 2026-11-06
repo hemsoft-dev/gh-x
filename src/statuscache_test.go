@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -501,8 +502,18 @@ func TestStatusCacheDirectoryWithoutOrigin(t *testing.T) {
 	}
 	t.Setenv("GH_REPO", "owner/repo")
 	remoteConfig = ""
+	// Run the real no-match query in a private repository so the result does
+	// not depend on whether the test's working directory is inside a clone.
+	repo := t.TempDir()
+	if _, err := runStatusCommand("git", "-C", repo, "init", "-q"); err != nil {
+		t.Fatal(err)
+	}
 	configNoMatches := func() (string, error) {
-		return runStatusCommand("git", "config", "--local", "--get-regexp", `^nonexistent-gh-x-cache-config-key$`)
+		return runStatusCommand("git", "-C", repo, "config", "--local", "--get-regexp", `^nonexistent-gh-x-cache-config-key$`)
+	}
+	var exitErr *exec.ExitError
+	if output, err := configNoMatches(); output != "" || !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
+		t.Fatalf("real git config no-match = %q, err=%v; want exit status 1", output, err)
 	}
 	previousCommand := statusCommandFunc
 	statusCommandFunc = func(name string, args ...string) (string, error) {
