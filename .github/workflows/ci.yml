@@ -376,7 +376,10 @@ jobs:
   mutation:
     name: Mutation Testing
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Each covered mutant executes real package tests. The full ./src run
+    # took 74 minutes with 3 workers on Mini's 12 CPUs. Runtime on this
+    # 4-vCPU runner is unmeasured; retain room for the first hosted result.
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0

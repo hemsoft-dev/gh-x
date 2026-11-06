@@ -1,6 +1,6 @@
 ---
 name: perfection
-description: "V1.3 - Commands: audit, coverage, crap, mutate, simplify, harden. Comprehensive Go code quality enforcement for gh-x: coverage, CRAP, mutation, static analysis and pinned source/history credential scanning. Use when improving code quality, writing tests, or before merging."
+description: "V1.4 - Commands: audit, coverage, crap, mutate, simplify, harden. Comprehensive Go code quality enforcement for gh-x: coverage, CRAP, mutation, static analysis and pinned source/history credential scanning. Use when improving code quality, writing tests, or before merging."
 compatibility: Requires go 1.23+, git
 hooks:
   PostToolUse:
@@ -122,8 +122,10 @@ PowerShell executor regression tests. The local runner executes:
    complexity <=15 and CRAP <30 with both `./...` and the explicit hidden `./.github/scripts/...` scopes.
     Production complexity scans include `.github/scripts`; CRAP joins use full
     relative paths and declaration lines rather than basenames.
-10. Run mutation fixtures and Gremlins against the package scope and 90% floors
-    in `.github/quality-tools.env`, including integer-ratio boundary checks.
+10. Run the mutation fixtures, including a real Gremlins run whose undetectable
+    mutant must live and fail the gate, then the shared
+    `.github/scripts/run-mutation-gate.sh` against the package scope and 90%
+    floors in `.github/quality-tools.env`, including integer-ratio boundary checks.
 11. Run performance gate tests and all versioned benchmark budgets. Local audits
     always measure; only CI applies changed-path selection.
 12. Run dashboard JavaScript quality fixtures and the same all-source c8/ESLint
@@ -183,8 +185,8 @@ Present results as a scorecard table:
 | Max Cyclomatic      | 4       | ≤10     | ✅     |
 | Max Cognitive       | 8       | ≤15     | ✅     |
 | CRAP Score          | 4.2     | <30     | ✅     |
-| Mutation efficacy   | 100%    | ≥90%    | ✅     |
-| Mutator coverage    | 90.17%  | ≥90%    | ✅     |
+| Mutation efficacy   | 81.00%  | ≥90%    | ❌     |
+| Mutator coverage    | 93.69%  | ≥90%    | ✅     |
 | Markdown Lint       | pass    | pass    | ✅     |
 ```
 
@@ -249,20 +251,46 @@ Always clean up: `Remove-Item coverage.out -ErrorAction SilentlyContinue`
 
 Mutation testing validates test quality by injecting faults and checking if tests catch them.
 
-**Primary tool**: [gremlins](https://github.com/go-gremlins/gremlins) — the actively maintained Go mutation testing framework used in CI.
+**Primary tool**: [gremlins](https://github.com/go-gremlins/gremlins) v0.6.0,
+run only through the shared gate that CI and the local audit use:
 
-```powershell
-gremlins unleash --timeout-coefficient 10 --threshold-efficacy 90 --threshold-mcover 90 ./src
+```bash
+bash .github/scripts/run-mutation-gate.sh
 ```
 
-**Timeout**: Mutation testing is CPU-intensive. CI allows 30 minutes. Locally, expect similar.
+Never run bare `gremlins unleash ./src` and read its score. Gremlins v0.6.0
+derives a mutant's test package from the Go package name; `src` declares
+`package main`, so it tests the module root, whose `go test` fails during
+setup, and counts that exit code 1 as a kill (#264). The historic 100%
+efficacy came from that failure, not from tests. The gate puts
+`.github/scripts/mutation-go-shim` first on `PATH` as `go`. For each mutant it
+runs `go test -json -vet=off` on the scope's own packages and records the run.
+The gate fails on any unproven run and on any killed, lived or not-viable count
+that no recorded run backs.
+
+**Timeout**: Each mutant recompiles `package main` (about 7 CPU-seconds), so a
+full run is long: 74 minutes with 3 workers on 12 CPUs (2026-11-05), and
+CI allows 300 minutes on its 4 vCPUs. Hosted runtime is still unmeasured. The gate uses one worker per two CPUs,
+a private pruned build cache and `TMPDIR`; give `TMPDIR` room for one module
+copy per worker. After strengthening the tests, the measured candidate scored
+95.56% efficacy and 94.42% mutator coverage, with zero unproven runs. Of
+2,456 kills, 2,447 named a failing test and 9 recorded a runtime panic.
+Resource kills, test-process timeouts and unexplained package failures are
+unproven and fail the gate. Three Linux-only bounded-child tests detect known
+runaway flag loops before they exhaust memory; hosted memory behavior remains
+unmeasured.
 
 **Understanding results**:
-- **Killed**: Test suite detected the mutation (good)
-- **Survived**: Mutation wasn't caught — test gap exists
+
+- **Killed**: A named test failed or the test binary recorded a runtime panic
+- **Lived**: Every test passed against the mutant; a test gap or an
+  equivalent mutant
 - **Not covered**: Mutated code has no test coverage at all
+- **Not viable**: The mutant does not compile; excluded from both ratios
 - **Timed out**: Mutation exceeded its test timeout; Gremlins v0.6.0
   reports it separately and excludes it from both ratios
+- **Unproven**: Setup, resolution, resource termination, an unexplained package
+  failure, or no executed test prevents proof; the gate fails
 
 Report format:
 

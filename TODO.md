@@ -17,7 +17,9 @@ The CI workflow and local perfection audit enforce the same core checks:
   govulncheck, and the repository's suppression and output policies;
 - at least 70% total coverage, cyclomatic complexity no higher than 10,
   cognitive complexity no higher than 15, and every CRAP score below 30;
-- at least 90% mutation efficacy and a non-empty mutation result; and
+- at least 90% mutation efficacy and 90% mutator coverage for `./src`, scored
+  only from mutants whose real package tests ran (see the README's quality
+  section); and
 - Markdown lint.
 
 Analyzer and markdown-lint versions are pinned in

@@ -152,11 +152,12 @@ function Get-AuditActions {
         'cyclomatic' = { param($c) Assert-AuditTool $c 'gocyclo'; Invoke-NoOutputCommand 'cyclomatic <= 10' 'gocyclo' @('-over', '10', '-ignore', '_test\.go', '.', '.github/scripts') }
         'cognitive' = { param($c) Assert-AuditTool $c 'gocognit'; Invoke-NoOutputCommand 'cognitive <= 15' 'gocognit' @('-over', '15', '-ignore', '_test\.go', '.', '.github/scripts') }
         'crap' = { param($c) Assert-AuditTool $c 'gocyclo'; Assert-CrapThreshold $c.Coverage 30.0 }
-        'mutation-fixtures' = { param($c) Invoke-CheckedCommand 'mutation fixtures' 'bash' @('.github/scripts/test-mutation-gate.sh') }
+        'mutation-fixtures' = { param($c) Assert-AuditTool $c 'gremlins'; Invoke-CheckedCommand 'mutation fixtures' 'bash' @('.github/scripts/test-mutation-gate.sh') }
         'mutation' = {
             param($c)
             Assert-AuditTool $c 'gremlins'
-            Assert-MutationThresholds ([double]$c.Pins.MUTATION_EFFICACY_THRESHOLD) ([double]$c.Pins.MUTATION_COVERAGE_THRESHOLD) $c.Pins.MUTATION_PACKAGE_SCOPE
+            # The shared gate reads the floors and scope from quality-tools.env.
+            Invoke-CheckedCommand "mutation efficacy >= $($c.Pins.MUTATION_EFFICACY_THRESHOLD)% and mutator coverage >= $($c.Pins.MUTATION_COVERAGE_THRESHOLD)%" 'bash' @('.github/scripts/run-mutation-gate.sh', $c.Pins.MUTATION_PACKAGE_SCOPE)
         }
         'performance-tests' = { param($c) Invoke-CheckedCommand 'performance gate tests' 'node' @('--test', 'benchmarks/*.test.mjs') }
         'performance' = {
