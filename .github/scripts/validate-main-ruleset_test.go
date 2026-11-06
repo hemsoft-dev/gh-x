@@ -15,6 +15,34 @@ func TestValidateRuleset(t *testing.T) {
 	}{
 		{name: "versioned ruleset is valid"},
 		{
+			name: "unattributed-change approval is omitted",
+			mutate: func(t *testing.T, config *ruleset) {
+				parametersFor(t, config, "pull_request").RequireExtraApprovalForUnattributedChanges = nil
+			},
+			wantErr: "unattributed-change extra approval must remain enabled",
+		},
+		{
+			name: "unattributed-change approval is disabled",
+			mutate: func(t *testing.T, config *ruleset) {
+				parametersFor(t, config, "pull_request").RequireExtraApprovalForUnattributedChanges = boolPointer(false)
+			},
+			wantErr: "unattributed-change extra approval must remain enabled",
+		},
+		{
+			name: "merge methods are omitted",
+			mutate: func(t *testing.T, config *ruleset) {
+				parametersFor(t, config, "pull_request").AllowedMergeMethods = nil
+			},
+			wantErr: "merge, squash and rebase methods must remain allowed",
+		},
+		{
+			name: "merge method is removed",
+			mutate: func(t *testing.T, config *ruleset) {
+				parametersFor(t, config, "pull_request").AllowedMergeMethods = []string{"squash", "rebase"}
+			},
+			wantErr: "merge, squash and rebase methods must remain allowed",
+		},
+		{
 			name: "status check rule is missing",
 			mutate: func(_ *testing.T, config *ruleset) {
 				config.Rules = rulesOfType(*config, "pull_request")
@@ -27,6 +55,69 @@ func TestValidateRuleset(t *testing.T) {
 				config.Rules = rulesOfType(*config, "required_status_checks")
 			},
 			wantErr: "must define one pull-request rule",
+		},
+		{
+			name: "deletion rule is missing",
+			mutate: func(_ *testing.T, config *ruleset) {
+				config.Rules = rulesExcept(*config, "deletion")
+			},
+			wantErr: "must define one deletion rule that restricts deleting main",
+		},
+		{
+			name: "non-fast-forward rule is missing",
+			mutate: func(_ *testing.T, config *ruleset) {
+				config.Rules = rulesExcept(*config, "non_fast_forward")
+			},
+			wantErr: "must define one non-fast-forward rule that blocks force pushes to main",
+		},
+		{
+			name: "deletion rule is duplicated",
+			mutate: func(_ *testing.T, config *ruleset) {
+				config.Rules = append(config.Rules, rulesetRule{Type: "deletion"})
+			},
+			wantErr: "must define one deletion rule",
+		},
+		{
+			name: "non-fast-forward rule is duplicated",
+			mutate: func(_ *testing.T, config *ruleset) {
+				config.Rules = append(config.Rules, rulesetRule{Type: "non_fast_forward"})
+			},
+			wantErr: "must define one non-fast-forward rule",
+		},
+		{
+			name: "unsupported rule is added",
+			mutate: func(_ *testing.T, config *ruleset) {
+				config.Rules = append(config.Rules, rulesetRule{Type: "creation"})
+			},
+			wantErr: "must define only status-check, pull-request, deletion and non-fast-forward rules",
+		},
+		{
+			name: "deletion rule defines parameters",
+			mutate: func(t *testing.T, config *ruleset) {
+				ruleFor(t, config, "deletion").Parameters = &rulesetParameters{}
+			},
+			wantErr: "deletion rule must not define parameters",
+		},
+		{
+			name: "non-fast-forward rule defines parameters",
+			mutate: func(t *testing.T, config *ruleset) {
+				ruleFor(t, config, "non_fast_forward").Parameters = &rulesetParameters{}
+			},
+			wantErr: "non_fast_forward rule must not define parameters",
+		},
+		{
+			name: "status check parameters are missing",
+			mutate: func(t *testing.T, config *ruleset) {
+				ruleFor(t, config, "required_status_checks").Parameters = nil
+			},
+			wantErr: "required-status-check rule must define parameters",
+		},
+		{
+			name: "pull request parameters are missing",
+			mutate: func(t *testing.T, config *ruleset) {
+				ruleFor(t, config, "pull_request").Parameters = nil
+			},
+			wantErr: "pull-request rule must define parameters",
 		},
 		{
 			name: "thread resolution is omitted",
@@ -127,15 +218,117 @@ func loadTestRuleset(t *testing.T) ruleset {
 	return config
 }
 
-func parametersFor(t *testing.T, config *ruleset, ruleType string) *rulesetParameters {
+func ruleFor(t *testing.T, config *ruleset, ruleType string) *rulesetRule {
 	t.Helper()
 	for i := range config.Rules {
 		if config.Rules[i].Type == ruleType {
-			return &config.Rules[i].Parameters
+			return &config.Rules[i]
 		}
 	}
 	t.Fatalf("missing %s rule", ruleType)
 	return nil
+}
+
+func parametersFor(t *testing.T, config *ruleset, ruleType string) *rulesetParameters {
+	t.Helper()
+	parameters := ruleFor(t, config, ruleType).Parameters
+	if parameters == nil {
+		t.Fatalf("%s rule has no parameters", ruleType)
+	}
+	return parameters
+}
+
+func rulesExcept(config ruleset, ruleType string) []rulesetRule {
+	remaining := make([]rulesetRule, 0, len(config.Rules))
+	for _, rule := range config.Rules {
+		if rule.Type != ruleType {
+			remaining = append(remaining, rule)
+		}
+	}
+	return remaining
+}
+
+// The versioned file must carry the protections as type-only objects, so a
+// parameters key (even an empty or null one) cannot hide in the JSON source.
+func TestVersionedProtectionsAreTypeOnly(t *testing.T) {
+	data, err := os.ReadFile("../rulesets/main.json")
+	if err != nil {
+		t.Fatalf("read ruleset: %v", err)
+	}
+	var raw struct {
+		Rules []map[string]json.RawMessage `json:"rules"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("parse ruleset: %v", err)
+	}
+	found := map[string]int{}
+	for _, rule := range raw.Rules {
+		var ruleType string
+		if err := json.Unmarshal(rule["type"], &ruleType); err != nil {
+			t.Fatalf("parse rule type: %v", err)
+		}
+		if ruleType != "deletion" && ruleType != "non_fast_forward" {
+			continue
+		}
+		found[ruleType]++
+		if len(rule) != 1 {
+			t.Errorf("%s rule has keys beyond type: %d keys", ruleType, len(rule))
+		}
+	}
+	if found["deletion"] != 1 || found["non_fast_forward"] != 1 {
+		t.Fatalf("protection rule counts = %v, want one deletion and one non_fast_forward", found)
+	}
+}
+
+// Removing either protection from the file must stop the same entry point
+// that `go run .github/scripts/validate-main-ruleset.go` uses.
+func TestRepositoryValidationRejectsRulesetWithoutProtection(t *testing.T) {
+	for ruleType, wantErr := range map[string]string{
+		"deletion":         "must define one deletion rule",
+		"non_fast_forward": "must define one non-fast-forward rule",
+	} {
+		t.Run(ruleType, func(t *testing.T) {
+			config := loadTestRuleset(t)
+			config.Rules = rulesExcept(config, ruleType)
+			data, err := json.Marshal(config)
+			if err != nil {
+				t.Fatalf("encode ruleset: %v", err)
+			}
+			root := t.TempDir()
+			copyRepositoryInputs(t, root)
+			writeTestFile(t, root+"/.github/rulesets/main.json", data)
+			t.Chdir(root)
+			if err := validateRepository(); err == nil || !strings.Contains(err.Error(), wantErr) {
+				t.Fatalf("validateRepository() error = %v, want substring %q", err, wantErr)
+			}
+		})
+	}
+}
+
+func copyRepositoryInputs(t *testing.T, root string) {
+	t.Helper()
+	for _, path := range []string{
+		".github/workflows/ci.yml",
+		".github/workflows/auto-release.yml",
+		".github/scripts/verify-authoritative-run.sh",
+		".github/quality-tools.env",
+	} {
+		data, err := os.ReadFile("../../" + path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		writeTestFile(t, root+"/"+path, data)
+	}
+}
+
+func writeTestFile(t *testing.T, path string, data []byte) {
+	t.Helper()
+	if err := os.MkdirAll(path[:strings.LastIndex(path, "/")], 0o755); err != nil {
+		t.Fatalf("create directory for %s: %v", path, err)
+	}
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
 }
 
 func boolPointer(value bool) *bool {
