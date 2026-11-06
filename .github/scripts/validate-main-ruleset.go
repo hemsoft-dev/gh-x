@@ -26,20 +26,24 @@ type ruleset struct {
 	Rules []rulesetRule `json:"rules"`
 }
 
+// Parameters stays a pointer so parameterless protections can prove that the
+// versioned source sends no parameters object at all.
 type rulesetRule struct {
-	Type       string            `json:"type"`
-	Parameters rulesetParameters `json:"parameters"`
+	Type       string             `json:"type"`
+	Parameters *rulesetParameters `json:"parameters"`
 }
 
 type rulesetParameters struct {
-	RequiredStatusChecks           []requiredStatusCheck `json:"required_status_checks"`
-	Strict                         *bool                 `json:"strict_required_status_checks_policy"`
-	EnforceOnCreate                *bool                 `json:"do_not_enforce_on_create"`
-	RequiredApprovingReviewCount   *int                  `json:"required_approving_review_count"`
-	DismissStaleReviewsOnPush      *bool                 `json:"dismiss_stale_reviews_on_push"`
-	RequireCodeOwnerReview         *bool                 `json:"require_code_owner_review"`
-	RequireLastPushApproval        *bool                 `json:"require_last_push_approval"`
-	RequiredReviewThreadResolution *bool                 `json:"required_review_thread_resolution"`
+	AllowedMergeMethods                        []string              `json:"allowed_merge_methods"`
+	RequireExtraApprovalForUnattributedChanges *bool                 `json:"require_extra_approval_for_unattributed_changes"`
+	RequiredStatusChecks                       []requiredStatusCheck `json:"required_status_checks"`
+	Strict                                     *bool                 `json:"strict_required_status_checks_policy"`
+	EnforceOnCreate                            *bool                 `json:"do_not_enforce_on_create"`
+	RequiredApprovingReviewCount               *int                  `json:"required_approving_review_count"`
+	DismissStaleReviewsOnPush                  *bool                 `json:"dismiss_stale_reviews_on_push"`
+	RequireCodeOwnerReview                     *bool                 `json:"require_code_owner_review"`
+	RequireLastPushApproval                    *bool                 `json:"require_last_push_approval"`
+	RequiredReviewThreadResolution             *bool                 `json:"required_review_thread_resolution"`
 }
 
 type requiredStatusCheck struct {
@@ -542,6 +546,8 @@ func checkoutTargetsWorkspace(step workflowStep) bool {
 func validateRuleset(configuredRuleset ruleset) error {
 	requiredStatusRules := rulesOfType(configuredRuleset, "required_status_checks")
 	pullRequestRules := rulesOfType(configuredRuleset, "pull_request")
+	deletionRules := rulesOfType(configuredRuleset, "deletion")
+	nonFastForwardRules := rulesOfType(configuredRuleset, "non_fast_forward")
 	if err := firstRulesetError(
 		rulesetValidation{configuredRuleset.Name == "main-quality-gate", "unexpected ruleset name"},
 		rulesetValidation{configuredRuleset.Target == "branch", "ruleset must target branches"},
@@ -551,14 +557,33 @@ func validateRuleset(configuredRuleset ruleset) error {
 		rulesetValidation{len(configuredRuleset.Conditions.RefName.Exclude) == 0, "ruleset must not exclude refs"},
 		rulesetValidation{len(requiredStatusRules) == 1, "ruleset must define one required-status-check rule"},
 		rulesetValidation{len(pullRequestRules) == 1, "ruleset must define one pull-request rule"},
-		rulesetValidation{len(configuredRuleset.Rules) == 2, "ruleset must define only status-check and pull-request rules"},
+		rulesetValidation{len(deletionRules) == 1, "ruleset must define one deletion rule that restricts deleting main"},
+		rulesetValidation{len(nonFastForwardRules) == 1, "ruleset must define one non-fast-forward rule that blocks force pushes to main"},
+		rulesetValidation{len(configuredRuleset.Rules) == 4, "ruleset must define only status-check, pull-request, deletion and non-fast-forward rules"},
 	); err != nil {
 		return err
 	}
-	if err := validateRequiredStatusRule(requiredStatusRules[0]); err != nil {
-		return err
+	return firstError(
+		validateRequiredStatusRule(requiredStatusRules[0]),
+		validatePullRequestRule(pullRequestRules[0]),
+		validateParameterlessRule(deletionRules[0]),
+		validateParameterlessRule(nonFastForwardRules[0]),
+	)
+}
+
+func firstError(errs ...error) error {
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
 	}
-	return validatePullRequestRule(pullRequestRules[0])
+	return nil
+}
+
+// GitHub defines deletion and non_fast_forward as type-only rules; any
+// parameters object is malformed source rather than a stricter protection.
+func validateParameterlessRule(rule rulesetRule) error {
+	return firstRulesetError(rulesetValidation{rule.Parameters == nil, rule.Type + " rule must not define parameters"})
 }
 
 func rulesOfType(configuredRuleset ruleset, ruleType string) []rulesetRule {
@@ -573,6 +598,9 @@ func rulesOfType(configuredRuleset ruleset, ruleType string) []rulesetRule {
 
 func validateRequiredStatusRule(rule rulesetRule) error {
 	parameters := rule.Parameters
+	if parameters == nil {
+		return fmt.Errorf("required-status-check rule must define parameters")
+	}
 	return firstRulesetError(
 		rulesetValidation{
 			reflect.DeepEqual(parameters.RequiredStatusChecks, []requiredStatusCheck{{Context: "Quality Gate", IntegrationID: 15368}}),
@@ -585,12 +613,17 @@ func validateRequiredStatusRule(rule rulesetRule) error {
 
 func validatePullRequestRule(rule rulesetRule) error {
 	parameters := rule.Parameters
+	if parameters == nil {
+		return fmt.Errorf("pull-request rule must define parameters")
+	}
 	return firstRulesetError(
 		rulesetValidation{parameters.RequiredApprovingReviewCount != nil && *parameters.RequiredApprovingReviewCount == 0, "pull requests must require exactly zero approving reviews"},
 		rulesetValidation{parameters.DismissStaleReviewsOnPush != nil && !*parameters.DismissStaleReviewsOnPush, "stale-review dismissal must remain disabled"},
 		rulesetValidation{parameters.RequireCodeOwnerReview != nil && !*parameters.RequireCodeOwnerReview, "code-owner review must remain disabled"},
 		rulesetValidation{parameters.RequireLastPushApproval != nil && !*parameters.RequireLastPushApproval, "last-push approval must remain disabled"},
 		rulesetValidation{parameters.RequiredReviewThreadResolution != nil && *parameters.RequiredReviewThreadResolution, "pull requests must require resolved review threads"},
+		rulesetValidation{parameters.RequireExtraApprovalForUnattributedChanges != nil && *parameters.RequireExtraApprovalForUnattributedChanges, "unattributed-change extra approval must remain enabled"},
+		rulesetValidation{reflect.DeepEqual(parameters.AllowedMergeMethods, []string{"merge", "squash", "rebase"}), "merge, squash and rebase methods must remain allowed"},
 	)
 }
 
