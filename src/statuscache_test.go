@@ -332,8 +332,8 @@ func TestStatusCacheDirectoryTracksConfiguredDefaultRemote(t *testing.T) {
 			return commonDirectory, nil
 		case "git config --includes --null --get-regexp ^(remote\\..*\\.(url|gh-resolved)|url\\..*)$":
 			return remoteConfig, nil
-		case "git symbolic-ref -q --short HEAD":
-			return "main", nil
+		case "git symbolic-ref -q HEAD":
+			return "refs/heads/main\n", nil
 		case "git config --includes --get branch.main.remote":
 			return "origin", nil
 		default:
@@ -481,8 +481,8 @@ func TestStatusCacheDirectoryWithoutOrigin(t *testing.T) {
 			return commonDirectory, nil
 		case "git config --includes --null --get-regexp ^(remote\\..*\\.(url|gh-resolved)|url\\..*)$":
 			return remoteConfig, nil
-		case "git symbolic-ref -q --short HEAD":
-			return "main", nil
+		case "git symbolic-ref -q HEAD":
+			return "refs/heads/main\n", nil
 		case "git config --includes --get branch.main.remote":
 			if remoteConfig == "" {
 				return "", nil
@@ -551,8 +551,8 @@ func TestStatusCacheDirectoryIsolatesAuthenticationContext(t *testing.T) {
 			return commonDirectory, nil
 		case "git config --includes --null --get-regexp ^(remote\\..*\\.(url|gh-resolved)|url\\..*)$":
 			return "remote.origin.url\nhttps://github.com/owner/repo.git\x00", nil
-		case "git symbolic-ref -q --short HEAD":
-			return "main", nil
+		case "git symbolic-ref -q HEAD":
+			return "refs/heads/main\n", nil
 		case "git config --includes --get branch.main.remote":
 			return "origin", nil
 		default:

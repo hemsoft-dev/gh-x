@@ -329,7 +329,8 @@ func statusRemoteConfig() (string, error) {
 }
 
 func statusBranchRemote() (string, error) {
-	branch, err := statusCommandFunc("git", "symbolic-ref", "-q", "--short", "HEAD")
+	// --short would print heads/<name> for a branch that a tag shadows.
+	branch, err := statusCommandFunc("git", "symbolic-ref", "-q", "HEAD")
 	if err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
@@ -337,7 +338,7 @@ func statusBranchRemote() (string, error) {
 		}
 		return "", err
 	}
-	branch = strings.TrimSpace(branch)
+	branch = strings.TrimPrefix(strings.TrimSpace(branch), "refs/heads/")
 	if branch == "" {
 		return "", errors.New("active branch unavailable")
 	}
