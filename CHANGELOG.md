@@ -13,6 +13,11 @@ and this project uses semantic versioning.
 
 ## [Unreleased]
 
+## [0.23.15] - 2026-11-07
+
+- docs: record v0.23.14 release (#279)
+- fix: find tag-shadowed branches in status (#276) (#278)
+
 ## [0.23.14] - 2026-11-07
 
 - fix: count status paths that contain spaces (#275) (#277)
@@ -456,7 +461,8 @@ the published releases above.
 - Dynamic or unreadable workflow definitions now display `unknown` in the
   trigger column instead of failing the list command.
 
-[Unreleased]: https://github.com/hemsoft-dev/gh-x/compare/v0.23.14...HEAD
+[Unreleased]: https://github.com/hemsoft-dev/gh-x/compare/v0.23.15...HEAD
+[0.23.15]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.15
 [0.23.14]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.14
 [0.23.13]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.13
 [0.23.12]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.12
