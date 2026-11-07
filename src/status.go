@@ -505,7 +505,9 @@ func classifyStatusBranchRef(inventory *statusBranchInventory, ref statusBranchR
 	switch {
 	case strings.HasPrefix(ref.FullName, "refs/heads/"):
 		inventory.LocalCount++
-		inventory.Local[ref.ShortName] = ref
+		// Key by the full ref: Git shortens a branch that a same-named tag
+		// shadows to heads/<name>, but callers look branches up by name.
+		inventory.Local[strings.TrimPrefix(ref.FullName, "refs/heads/")] = ref
 		if strings.Contains(strings.ToLower(ref.Track), "[gone]") {
 			inventory.DanglingCount++
 		}
@@ -613,7 +615,9 @@ func fetchDefaultBranchStatus(branch string, inventory statusBranchInventory) (s
 	if ref.Upstream == "" {
 		return summary, false, nil
 	}
-	output, err := statusCommandFunc("git", "rev-list", "--left-right", "--count", branch+"..."+ref.Upstream)
+	// A plain branch name resolves to a same-named tag first; name the branch
+	// ref. Git's short upstream name is already unambiguous.
+	output, err := statusCommandFunc("git", "rev-list", "--left-right", "--count", "refs/heads/"+branch+"..."+ref.Upstream)
 	if err != nil {
 		return summary, false, err
 	}
@@ -630,13 +634,13 @@ func fetchMergedStatusBranches(defaultBranch string) (map[string]bool, bool) {
 	if defaultBranch == "" {
 		return nil, false
 	}
-	output, err := statusCommandFunc("git", "for-each-ref", "--merged=refs/heads/"+defaultBranch, "--format=%(refname:short)", "refs/heads")
+	output, err := statusCommandFunc("git", "for-each-ref", "--merged=refs/heads/"+defaultBranch, "--format=%(refname)", "refs/heads")
 	if err != nil {
 		return nil, false
 	}
 	merged := make(map[string]bool)
-	for _, branch := range strings.Fields(output) {
-		merged[branch] = true
+	for _, ref := range strings.Fields(output) {
+		merged[strings.TrimPrefix(ref, "refs/heads/")] = true
 	}
 	return merged, true
 }

@@ -167,7 +167,7 @@ func TestFetchDefaultBranchStatusNotCheckedOut(t *testing.T) {
 	defer saveStatusFuncs()()
 	statusCommandFunc = func(name string, args ...string) (string, error) {
 		key := name + " " + strings.Join(args, " ")
-		if key != "git rev-list --left-right --count trunk...origin/trunk" {
+		if key != "git rev-list --left-right --count refs/heads/trunk...origin/trunk" {
 			return "", fmt.Errorf("unexpected command: %s", key)
 		}
 		return "2\t1\n", nil
@@ -292,8 +292,8 @@ func TestFetchStatusDashboard(t *testing.T) {
 			return "C:/repo.worktrees/issue-7 \r\n", nil
 		case "git -C C:/repo status --porcelain=v2 --branch":
 			return "# branch.head main\n# branch.upstream origin/main\n# branch.ab +0 -0\n", nil
-		case "git for-each-ref --merged=refs/heads/main --format=%(refname:short) refs/heads":
-			return "main\nfeature/status\nold\n", nil
+		case "git for-each-ref --merged=refs/heads/main --format=%(refname) refs/heads":
+			return "refs/heads/main\nrefs/heads/feature/status\nrefs/heads/old\n", nil
 		case "git -C C:/repo.worktrees/old status --porcelain":
 			return "", nil
 		default:
@@ -429,8 +429,8 @@ func installStatusDashboardGitFixture() {
 			return "C:/repo\n", nil
 		case "git -C C:/repo status --porcelain=v2 --branch":
 			return "# branch.head main\n# branch.upstream origin/main\n# branch.ab +0 -0\n", nil
-		case "git for-each-ref --merged=refs/heads/main --format=%(refname:short) refs/heads":
-			return "main\nold\n", nil
+		case "git for-each-ref --merged=refs/heads/main --format=%(refname) refs/heads":
+			return "refs/heads/main\nrefs/heads/old\n", nil
 		case "git -C C:/old status --porcelain":
 			return "", nil
 		default:
