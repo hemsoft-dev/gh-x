@@ -693,8 +693,11 @@ An org-wide view of PRs that need your attention — no more checking each repo 
 #41 feat: add contract-testing for PactNet...  my-app jdoe   open  •   pass 0    pass   12/12 2d
 ```
 
-By default, shows open PRs you authored across the org.
-Use `--review-required` to see PRs awaiting your review.
+By default, shows open PRs across the org that need your review: PRs requesting
+your review, plus PRs by others that are assigned to you or that you have
+reviewed, leaving out any you have already approved.
+Use `--authored` to see open PRs you created instead, or `--review-required` to
+see only PRs where your review is directly requested.
 
 ### `atm` flags
 
@@ -702,15 +705,18 @@ Use `--review-required` to see PRs awaiting your review.
 |------|-------------|
 | `-o, --org ORG` | Organization to search (default: inferred from current repo) |
 | `-L, --limit N` | Maximum PRs to show (default: 30) |
-| `-r, --review-required` | Show PRs where your review is requested |
+| `-a, --authored` | Show open PRs you authored instead of PRs needing your review |
+| `-r, --review-required` | Show only PRs where your review is directly requested |
+| `--ready` | Show only PRs ready to merge (open, AI pass, checks pass, all comments resolved) |
 | `--json` | Output as JSON |
 
 ### `atm` examples
 
 ```bash
-gh x pr atm                              # my PRs across current org
-gh x pr atm --org AcmeCorp                # my PRs in a specific org
-gh x pr atm --review-required            # PRs awaiting my review
+gh x pr atm                              # PRs needing my review across current org
+gh x pr atm --org AcmeCorp               # PRs needing my review in a specific org
+gh x pr atm --authored                   # my PRs across current org
+gh x pr atm --review-required            # only PRs where my review is directly requested
 gh x pr atm --org AcmeCorp -r --limit 10   # review requests, capped
 gh x pr atm --json                       # machine-readable output
 ```
@@ -818,7 +824,7 @@ gh x run list --event pull_request            # PR-triggered runs
 View release notes directly from the CLI:
 
 ```bash
-gh x pr changelog                     # last 5 releases
+gh x pr changelog                     # latest release
 gh x pr changelog --limit 10          # last 10 releases
 gh x pr changelog --version 0.3.0     # specific version
 ```
