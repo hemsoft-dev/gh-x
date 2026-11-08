@@ -704,7 +704,7 @@ see only PRs where your review is directly requested.
 | Flag | Description |
 |------|-------------|
 | `-o, --org ORG` | Organization to search (default: inferred from current repo) |
-| `-L, --limit N` | Maximum PRs to show (default: 30) |
+| `-L, --limit N` | Maximum PRs to fetch per search (default: 30); the default view runs three searches |
 | `-a, --authored` | Show open PRs you authored instead of PRs needing your review |
 | `-r, --review-required` | Show only PRs where your review is directly requested |
 | `--ready` | Show only PRs ready to merge (open, AI pass, checks pass, all comments resolved) |
