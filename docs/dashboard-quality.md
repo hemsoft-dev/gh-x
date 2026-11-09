@@ -26,6 +26,12 @@ versions and the complete npm dependency graph before measuring. A missing
 secondary dependency fails with an instruction to rerun the isolated installer.
 Missing direct tools also name that installer command.
 
+`package.json` overrides `minimatch` to `^11.0.5` for
+[GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249).
+c8 12.0.0 reaches minimatch through `test-exclude` 8.0.0 and `glob` 13.0.6,
+which still ask for `^10.2.2`, so Dependabot cannot update it alone. Remove the
+override once c8's dependency chain accepts minimatch 11.0.1 or later.
+
 ## Scope and measurement
 
 Every `.mjs` module under `src/codex-dashboard` and `src/dashboard-hub` is
