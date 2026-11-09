@@ -13,6 +13,12 @@ and this project uses semantic versioning.
 
 ## [Unreleased]
 
+## [0.23.16] - 2026-11-09
+
+- chore(deps): override minimatch to 11.0.5 for quality tools (#284)
+- docs: correct atm and changelog defaults in README (#283)
+- docs: record v0.23.15 release (#280)
+
 ## [0.23.15] - 2026-11-07
 
 - docs: record v0.23.14 release (#279)
@@ -461,7 +467,8 @@ the published releases above.
 - Dynamic or unreadable workflow definitions now display `unknown` in the
   trigger column instead of failing the list command.
 
-[Unreleased]: https://github.com/hemsoft-dev/gh-x/compare/v0.23.15...HEAD
+[Unreleased]: https://github.com/hemsoft-dev/gh-x/compare/v0.23.16...HEAD
+[0.23.16]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.16
 [0.23.15]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.15
 [0.23.14]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.14
 [0.23.13]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.13
