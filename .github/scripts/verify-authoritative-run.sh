@@ -17,7 +17,8 @@ fail() {
   exit 1
 }
 
-if ! timeout 60m gh run watch "$run_id" --repo "$repo" --exit-status --interval 30; then
+# Outlive the slowest gate (Mutation Testing's timeout-minutes) plus queueing.
+if ! timeout 240m gh run watch "$run_id" --repo "$repo" --exit-status --interval 30; then
   fail "stopped before a successful Quality Gate"
 fi
 if ! actual_head=$(gh api "repos/${repo}/actions/runs/${run_id}" --jq '.head_sha'); then

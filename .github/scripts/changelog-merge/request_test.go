@@ -150,7 +150,7 @@ func TestAuthoritativeDispatchHasAnIsolatedConcurrencyLane(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, required := range []string{
-		`timeout 60m gh run watch "$run_id" --repo "$repo" --exit-status`,
+		`timeout 240m gh run watch "$run_id" --repo "$repo" --exit-status`,
 		`gh api --paginate "repos/${repo}/actions/runs/${run_id}/jobs?per_page=100" |`,
 		`jq -sr '[.[].jobs[] |`,
 		`"$gate_conclusion" != "success"`,

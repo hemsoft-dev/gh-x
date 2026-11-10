@@ -473,6 +473,30 @@ func TestMergeBudgetOutlivesRequiredGates(t *testing.T) {
 	if executionTimeout([]string{"review"}) >= jobBudget {
 		t.Fatal("review must finish within its CI job budget")
 	}
+	// Auto Release watches the whole authoritative run, so the watch must
+	// outlive its slowest job, and the release job must hold the watch plus
+	// the guarded merge wait inside GitHub's 360-minute hosted job limit.
+	const queueing = 15 * time.Minute
+	mutationBudget := time.Duration(workflow.Jobs["mutation"].TimeoutMinutes) * time.Minute
+	if mutationBudget <= 0 || watchBudget < mutationBudget+queueing {
+		t.Fatalf("authoritative watch %v must outlive Mutation Testing's %v plus %v queueing", watchBudget, mutationBudget, queueing)
+	}
+	release, err := os.ReadFile("../../workflows/auto-release.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var releaseWorkflow struct {
+		Jobs map[string]struct {
+			TimeoutMinutes int `yaml:"timeout-minutes"`
+		}
+	}
+	if err := yaml.Unmarshal(release, &releaseWorkflow); err != nil {
+		t.Fatal(err)
+	}
+	releaseBudget := time.Duration(releaseWorkflow.Jobs["release"].TimeoutMinutes) * time.Minute
+	if releaseBudget < watchBudget+executionTimeout([]string{"enable"})+queueing || releaseBudget > 360*time.Minute {
+		t.Fatalf("release job %v must cover watch %v, merge wait %v and %v of steps, within 360m", releaseBudget, watchBudget, executionTimeout([]string{"enable"}), queueing)
+	}
 }
 
 func TestReadOnlyReviewNeverRequests(t *testing.T) {
