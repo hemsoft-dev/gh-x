@@ -311,6 +311,7 @@ func copyRepositoryInputs(t *testing.T, root string) {
 		".github/workflows/ci.yml",
 		".github/workflows/auto-release.yml",
 		".github/scripts/verify-authoritative-run.sh",
+		".github/scripts/prepare-changelog-pr.sh",
 		".github/quality-tools.env",
 	} {
 		data, err := os.ReadFile("../../" + path)
@@ -475,6 +476,54 @@ func TestVersionedWorkflowValidation(t *testing.T) {
 	t.Chdir("../..")
 	if err := validateRepository(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Auto Release's watch and job timeout must keep covering the slowest gate.
+// Each edit below brings back a budget that fails a real release (#289).
+func TestRepositoryValidationRejectsShortReleaseWaits(t *testing.T) {
+	for name, tc := range map[string]struct {
+		path, old, new, wantErr string
+	}{
+		"watch shorter than mutation": {
+			".github/scripts/verify-authoritative-run.sh", "timeout 240m gh run watch", "timeout 60m gh run watch",
+			"authoritative run watch must outlive the Mutation Testing timeout",
+		},
+		"mutation longer than watch": {
+			".github/workflows/ci.yml", "    timeout-minutes: 225\n", "    timeout-minutes: 300\n",
+			"authoritative run watch must outlive the Mutation Testing timeout",
+		},
+		"release job without room for the merge wait": {
+			".github/workflows/auto-release.yml", "    timeout-minutes: 350\n", "    timeout-minutes: 300\n",
+			"Auto Release job timeout must cover the run watch and guarded merge",
+		},
+		"release job past the hosted limit": {
+			".github/workflows/auto-release.yml", "    timeout-minutes: 350\n", "    timeout-minutes: 400\n",
+			"within the hosted job limit",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			copyRepositoryInputs(t, root)
+			data, err := os.ReadFile("../rulesets/main.json")
+			if err != nil {
+				t.Fatal(err)
+			}
+			writeTestFile(t, root+"/.github/rulesets/main.json", data)
+			original, err := os.ReadFile(root + "/" + tc.path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			text := strings.ReplaceAll(string(original), "\r\n", "\n")
+			if strings.Count(text, tc.old) != 1 {
+				t.Fatalf("%s must contain %q exactly once", tc.path, tc.old)
+			}
+			writeTestFile(t, root+"/"+tc.path, []byte(strings.Replace(text, tc.old, tc.new, 1)))
+			t.Chdir(root)
+			if err := validateRepository(); err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("validateRepository() error = %v, want substring %q", err, tc.wantErr)
+			}
+		})
 	}
 }
 

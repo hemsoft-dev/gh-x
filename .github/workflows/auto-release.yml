@@ -15,6 +15,9 @@ jobs:
       group: auto-release
       cancel-in-progress: false
     runs-on: ubuntu-latest
+    # Covers the authoritative-run watch, the guarded merge wait and the
+    # release steps, inside GitHub's 360-minute hosted job limit.
+    timeout-minutes: 350
     permissions:
       actions: write
       attestations: write

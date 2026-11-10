@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -163,6 +164,7 @@ func validateVersionedWorkflows() {
 	validateReleasePublication(releaseJob, autoReleaseContent)
 	validateExistingRelease(releaseJob)
 	validateChangelogDelivery(releaseJob, authoritativeRunContent)
+	validateReleaseWaitBudget(ci, releaseJob, authoritativeRunContent)
 	fmt.Fprintln(os.Stdout, "main ruleset and release workflows are consistent")
 }
 
@@ -363,6 +365,27 @@ func validateChangelogPreparation(job workflowJob, prepare workflowStep) {
 	require(stepIndex(job, prepare.Name) < stepIndex(job, "Build cross-platform binaries"), "candidate creation must precede build and irreversible publication")
 }
 
+// Auto Release waits for the dispatched changelog CI run and then for the
+// guarded merge, all inside one GitHub-hosted job.
+const (
+	hostedJobLimitMinutes     = 360
+	changelogMergeWaitMinutes = 90 // changelog-merge executionTimeout for "enable"
+	authoritativeQueueMinutes = 15
+)
+
+var authoritativeWatchPattern = regexp.MustCompile(`timeout ([1-9][0-9]*)m gh run watch "\$run_id" --repo "\$repo" --exit-status`)
+
+func validateReleaseWaitBudget(ci workflow, releaseJob workflowJob, authoritativeRunContent string) {
+	match := authoritativeWatchPattern.FindStringSubmatch(authoritativeRunContent)
+	require(match != nil, "authoritative verifier must bound its run watch in minutes")
+	watch, err := strconv.Atoi(match[1])
+	require(err == nil, "authoritative verifier watch must be a whole number of minutes")
+	mutation := ci.Jobs["mutation"].TimeoutMinutes
+	require(mutation > 0 && watch >= mutation+authoritativeQueueMinutes, "authoritative run watch must outlive the Mutation Testing timeout plus queueing")
+	release := releaseJob.TimeoutMinutes
+	require(release >= watch+changelogMergeWaitMinutes+authoritativeQueueMinutes && release <= hostedJobLimitMinutes, "Auto Release job timeout must cover the run watch and guarded merge within the hosted job limit")
+}
+
 func validateChangelogDelivery(releaseJob workflowJob, authoritativeRunContent string) {
 	mergeChangelog := namedStep(releaseJob, "Queue guarded changelog auto-merge and await completion")
 	validatePreparedChangelogDelivery(releaseJob, mergeChangelog)
@@ -371,7 +394,7 @@ func validateChangelogDelivery(releaseJob workflowJob, authoritativeRunContent s
 	require(mergeChangelog.Env["RELEASE_SHA"] == "${{ github.event.workflow_run.head_sha }}", "changelog reconciliation must retain the released commit SHA")
 	require(strings.Contains(mergeChangelog.Run, `"repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/dispatches"`) && strings.Contains(mergeChangelog.Run, `-f ref="$branch" --jq '.workflow_run_id'`), "changelog pull request must dispatch CI on its exact branch and capture the run ID")
 	require(strings.Contains(mergeChangelog.Run, `bash .github/scripts/verify-authoritative-run.sh \`) && strings.Contains(mergeChangelog.Run, `"$GITHUB_REPOSITORY" "$pr_url" "$head_sha" "$ci_run"`), "changelog merge must invoke the authoritative run verifier with exact identities")
-	require(strings.Contains(authoritativeRunContent, `timeout 60m gh run watch "$run_id" --repo "$repo" --exit-status`) && strings.Contains(authoritativeRunContent, `"$actual_head" != "$expected_head"`), "authoritative verifier must wait for the dispatched run and verify its head")
+	require(authoritativeWatchPattern.MatchString(authoritativeRunContent) && strings.Contains(authoritativeRunContent, `"$actual_head" != "$expected_head"`), "authoritative verifier must wait for the dispatched run and verify its head")
 	require(
 		strings.Contains(authoritativeRunContent, `gh api --paginate "repos/${repo}/actions/runs/${run_id}/jobs?per_page=100" |`) &&
 			strings.Contains(authoritativeRunContent, `jq -sr '[.[].jobs[] |`) &&
