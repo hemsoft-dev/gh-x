@@ -13,6 +13,11 @@ and this project uses semantic versioning.
 
 ## [Unreleased]
 
+## [0.23.18] - 2026-11-10
+
+- fix: let Auto Release wait for the full authoritative CI run (#290)
+- docs: record v0.23.17 release (#288)
+
 ## [0.23.17] - 2026-11-10
 
 - chore(deps): bump the github-actions group and gh-aw CLI to v1.2.1 (#287)
@@ -472,7 +477,8 @@ the published releases above.
 - Dynamic or unreadable workflow definitions now display `unknown` in the
   trigger column instead of failing the list command.
 
-[Unreleased]: https://github.com/hemsoft-dev/gh-x/compare/v0.23.17...HEAD
+[Unreleased]: https://github.com/hemsoft-dev/gh-x/compare/v0.23.18...HEAD
+[0.23.18]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.18
 [0.23.17]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.17
 [0.23.16]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.16
 [0.23.15]: https://github.com/hemsoft-dev/gh-x/releases/tag/v0.23.15
