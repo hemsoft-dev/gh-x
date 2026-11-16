@@ -858,7 +858,7 @@ icon selection on Automatic to use it.
 
 ## Local development
 
-Requires Go 1.26.10 or newer. CI reads the exact patched version from
+Requires Go 1.26.11 or newer. CI reads the exact patched version from
 `go.mod`; local builds with the default `GOTOOLCHAIN=auto` setting download it
 when the installed Go toolchain is older.
 
